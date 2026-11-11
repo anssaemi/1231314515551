@@ -1,0 +1,2566 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>지구 지키기 대작전 (Eco Cleaner)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;800;900&display=swap');
+
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            font-family: 'Noto Sans KR', sans-serif;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #0b0f19;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .font-game {
+            font-family: 'Jua', 'Noto Sans KR', sans-serif;
+        }
+
+        /* 16:9 가로형 TV 및 전자칠판 최적 맞춤 래퍼 */
+        #tvStageWrapper {
+            position: relative;
+            width: min(100vw, calc(100vh * 16 / 9));
+            height: min(100vh, calc(100vw * 9 / 16));
+            aspect-ratio: 16 / 9;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.85);
+            background: #0f172a;
+            transition: all 0.3s ease;
+        }
+
+        /* iFrame 환경 전체화면 권한 차단 대비 가상 전체화면 모드 */
+        #tvStageWrapper.simulated-fullscreen {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: none !important;
+            max-height: none !important;
+            z-index: 99999 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+
+        /* 칠판/터치스크린용 탭 시각 피드백 비활성화 */
+        input, button {
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 화면 흔들림 효과 (실수 감점 시) */
+        @keyframes screenShake {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            20% { transform: translate(-8px, 6px) rotate(-0.5deg); }
+            40% { transform: translate(8px, -6px) rotate(0.5deg); }
+            60% { transform: translate(-6px, -4px) rotate(-0.3deg); }
+            80% { transform: translate(6px, 4px) rotate(0.3deg); }
+        }
+
+        .shake-animation {
+            animation: screenShake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+        }
+
+        /* 부유 애니메이션 */
+        @keyframes floatUpDown {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(2deg); }
+        }
+
+        .floating {
+            animation: floatUpDown 2.5s ease-in-out infinite;
+        }
+
+        /* 펄스 글로우 버튼 */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(34, 197, 94, 0.6); }
+            50% { box-shadow: 0 0 35px rgba(34, 197, 94, 0.9); }
+        }
+
+        .pulse-btn {
+            animation: pulseGlow 1.8s infinite;
+        }
+
+        /* 3D 자전 지구 및 우주 배경 스타일 */
+        .space-bg {
+            background: radial-gradient(circle at center, #0a1128 0%, #030712 100%);
+        }
+
+        /* 캔버스 터치 방해 금지 */
+        canvas {
+            display: block;
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="text-white select-none">
+
+    <!-- 16:9 가로형 TV 디스플레이 컨테이너 프레임 -->
+    <div id="tvStageWrapper">
+        <div id="gameContainer" class="relative w-full h-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-sky-400 to-emerald-600 transition-colors duration-700">
+            
+            <!-- 상단 헤더 HUD (게임 진행 중에만 활성, 가로 상단 콤팩트 배치) -->
+            <header id="gameHUD" class="hidden absolute top-0 left-0 w-full h-[12%] px-4 lg:px-8 z-30 flex items-center justify-between bg-black/50 backdrop-blur-md border-b-2 border-white/20">
+                <!-- 스테이지 배지 및 테마 이름 -->
+                <div class="flex items-center space-x-3">
+                    <div id="hudStageBadge" class="bg-amber-400 text-slate-900 font-game text-lg lg:text-2xl px-4 py-1.5 rounded-full shadow-lg font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-tree"></i>
+                        <span>STAGE 1: 숲</span>
+                    </div>
+                    <div class="flex items-center bg-black/40 px-3 py-1.5 rounded-full border border-white/20 text-xs lg:text-sm font-semibold">
+                        <span>지구 정화도: </span>
+                        <div class="w-24 lg:w-36 h-3 bg-gray-700 rounded-full ml-2 overflow-hidden border border-white/30">
+                            <div id="hudCleanBar" class="h-full bg-emerald-400 w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 타이머 & 콤보 -->
+                <div class="flex items-center space-x-3">
+                    <!-- 콤보 표시기 -->
+                    <div id="hudComboContainer" class="opacity-0 transition-opacity duration-200 flex items-center bg-gradient-to-r from-orange-500 to-amber-400 px-3 py-1 rounded-full shadow-lg">
+                        <i class="fa-solid fa-fire text-yellow-200 mr-1.5 animate-bounce text-base"></i>
+                        <span id="hudComboText" class="font-game text-base lg:text-xl font-bold tracking-wider text-white">COMBO x2</span>
+                    </div>
+
+                    <!-- 타이머 -->
+                    <div class="flex items-center bg-rose-600/90 text-white px-4 py-1.5 rounded-2xl border-2 border-rose-300 shadow-md">
+                        <i class="fa-solid fa-stopwatch text-lg lg:text-xl mr-2 animate-pulse"></i>
+                        <span id="hudTimer" class="font-game text-xl lg:text-3xl font-extrabold tracking-widest min-w-[40px] text-center">30</span>
+                        <span class="text-xs ml-1 font-bold">초</span>
+                    </div>
+                </div>
+
+                <!-- 현재 점수 & 제어 버튼들 -->
+                <div class="flex items-center space-x-2">
+                    <div class="bg-blue-600/90 border-2 border-cyan-300 px-4 py-1.5 rounded-2xl shadow-md text-right">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-[10px] text-cyan-200 font-bold uppercase tracking-wider">점수</span>
+                            <span class="text-[10px] text-yellow-300 font-bold">목표: 500점</span>
+                        </div>
+                        <p id="hudScore" class="font-game text-xl lg:text-3xl font-black text-amber-300 leading-none">0</p>
+                    </div>
+                    <button id="btnPause" onclick="togglePauseGame()" title="일시 정지" class="bg-white/20 hover:bg-white/30 active:scale-95 text-white p-2.5 rounded-2xl border border-white/30 shadow transition">
+                        <i class="fa-solid fa-pause text-base lg:text-lg"></i>
+                    </button>
+                    <button onclick="toggleFullscreen()" title="전체화면" class="bg-white/20 hover:bg-white/30 active:scale-95 text-white p-2.5 rounded-2xl border border-white/30 shadow transition">
+                        <i class="fa-solid fa-expand text-base lg:text-lg"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 게임 플레이 메인 캔버스 -->
+            <main class="relative w-full h-full flex-grow">
+                <canvas id="gameCanvas" class="w-full h-full"></canvas>
+                
+                <!-- 점수 팝업/이펙트 컨테이너 (DOM Overlay) -->
+                <div id="effectOverlay" class="absolute inset-0 pointer-events-none overflow-hidden z-20"></div>
+            </main>
+
+            <!-- 1. 시작 타이틀 화면 (가로 TV에 적합한 2컬럼 레이아웃 + 3D 회전하는 지구 캔버스 배경) -->
+            <div id="screenTitle" class="absolute inset-0 z-40 flex items-center justify-center space-bg p-6 lg:p-10 overflow-hidden">
+                <!-- 자전하는 3D 지구 애니메이션 백그라운드 캔버스 -->
+                <canvas id="titleEarthCanvas" class="absolute inset-0 w-full h-full pointer-events-none z-0"></canvas>
+
+                <div class="relative z-10 w-full h-full max-w-6xl flex flex-col justify-between items-center py-2">
+                    <!-- 상단 타이틀 영역 -->
+                    <div class="flex items-center gap-4 bg-slate-900/60 backdrop-blur-md px-8 py-3 rounded-3xl border border-cyan-400/30 shadow-2xl">
+                        <div class="w-14 h-14 lg:w-16 lg:h-16 rounded-full bg-blue-500/80 border-2 border-emerald-400 shadow-lg flex items-center justify-center relative overflow-hidden floating">
+                            <i class="fa-solid fa-earth-asia text-2xl lg:text-3xl text-emerald-300"></i>
+                        </div>
+                        <div>
+                            <h1 class="font-game text-3xl lg:text-5xl font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-green-300 to-cyan-300 drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)] leading-tight">
+                                지구 지키기 대작전
+                            </h1>
+                            <p class="font-game text-xs lg:text-sm text-cyan-200 font-bold tracking-wider">
+                                🌏 SAVE THE PLANET
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 중앙 가이드 카드 (2분할) -->
+                    <div class="grid grid-cols-2 gap-4 w-full max-w-4xl bg-slate-950/70 p-4 rounded-3xl border-2 border-cyan-400/40 backdrop-blur-md shadow-2xl my-auto">
+                        <div class="flex items-center gap-3 bg-emerald-500/20 p-3 rounded-2xl border border-emerald-400/40">
+                            <div class="w-12 h-12 rounded-xl bg-emerald-500 flex items-center justify-center text-white shrink-0 text-2xl shadow">
+                                <i class="fa-solid fa-hand-pointer"></i>
+                            </div>
+                            <div>
+                                <p class="font-game text-base lg:text-lg text-emerald-300 font-bold">오염 물질을 터치하여 청소!</p>
+                                <p class="text-xs text-gray-200 leading-snug">플라스틱, 폐배터리, 그물, 매연 등을 터치해 지구를 깨끗하게 정화하세요! (+점수 획득)</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3 bg-rose-500/20 p-3 rounded-2xl border border-rose-400/40">
+                            <div class="w-12 h-12 rounded-xl bg-rose-500 flex items-center justify-center text-white shrink-0 text-2xl shadow">
+                                <i class="fa-solid fa-handshake-slash"></i>
+                            </div>
+                            <div>
+                                <p class="font-game text-base lg:text-lg text-rose-300 font-bold">자연 & 생물 터치 절대 금지!</p>
+                                <p class="text-xs text-gray-200 leading-snug">동물, 도토리, 맑은 물, 태양광 패널을 건드리면 감점(-20점)과 콤보가 초기화됩니다!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 하단 액션 버튼 그룹 -->
+                    <div class="flex items-center justify-center gap-4">
+                        <button onclick="openStageIntro(1)" class="pulse-btn font-game text-xl lg:text-2xl px-10 py-4 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 active:scale-95 text-white font-black rounded-2xl shadow-2xl border-2 border-emerald-200 flex items-center gap-3 transition">
+                            <i class="fa-solid fa-play"></i>
+                            <span>지금 시작하기!</span>
+                        </button>
+                        <button onclick="showLeaderboardScreen()" class="font-game text-lg lg:text-xl px-6 py-4 bg-slate-800/80 hover:bg-slate-700 active:scale-95 text-amber-300 font-bold rounded-2xl border border-amber-300/40 shadow-lg flex items-center gap-2 transition">
+                            <i class="fa-solid fa-trophy"></i>
+                            <span>명예의 전당</span>
+                        </button>
+                        <button onclick="toggleFullscreen()" class="font-game text-lg lg:text-xl px-5 py-4 bg-cyan-700/80 hover:bg-cyan-600 active:scale-95 text-white font-bold rounded-2xl border border-cyan-300/40 shadow-lg flex items-center gap-2 transition">
+                            <i class="fa-solid fa-expand"></i>
+                            <span>전체화면</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 스테이지 시작 전 가이드 팝업 화면 -->
+            <div id="screenStageIntro" class="hidden absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+                <div class="bg-gradient-to-br from-slate-900 to-slate-800 border-4 border-cyan-400/60 rounded-3xl p-6 lg:p-8 max-w-3xl w-full shadow-2xl flex flex-col justify-between max-h-[92%]">
+                    <!-- 스테이지 이름 -->
+                    <div class="text-center mb-2">
+                        <span id="introStageBadge" class="bg-emerald-500 font-game text-xs lg:text-sm px-4 py-1 rounded-full font-bold uppercase tracking-wider text-slate-950">STAGE 1</span>
+                        <h2 id="introStageTitle" class="font-game text-2xl lg:text-4xl font-black mt-1 text-yellow-300">숲속을 청소해요!</h2>
+                        <p id="introStageDesc" class="text-gray-300 text-xs lg:text-sm mt-0.5">버려진 캔과 유독성 배터리를 주워 숲속 동물들을 지켜주세요.</p>
+                    </div>
+
+                    <!-- 타겟 안내 (가로형 2단) -->
+                    <div class="grid grid-cols-2 gap-3 my-2 text-left">
+                        <!-- 청소할 오염물 -->
+                        <div class="bg-emerald-950/60 border border-emerald-500/50 p-3 rounded-2xl">
+                            <div class="flex items-center gap-2 mb-2 text-emerald-400 font-game text-sm lg:text-base">
+                                <i class="fa-solid fa-circle-check"></i>
+                                <span class="font-bold">터치해서 치워주세요! (+점수)</span>
+                            </div>
+                            <div id="introGoodTargets" class="space-y-1.5"></div>
+                        </div>
+
+                        <!-- 보호할 자연물 -->
+                        <div class="bg-rose-950/60 border border-rose-500/50 p-3 rounded-2xl">
+                            <div class="flex items-center gap-2 mb-2 text-rose-400 font-game text-sm lg:text-base">
+                                <i class="fa-solid fa-circle-xmark"></i>
+                                <span class="font-bold">절대 만지지 마세요! (-20점)</span>
+                            </div>
+                            <div id="introBadTargets" class="space-y-1.5"></div>
+                        </div>
+                    </div>
+
+                    <!-- 준비 완료 버튼 -->
+                    <div class="flex flex-col items-center gap-2 mt-2">
+                        <div class="text-amber-300 font-game text-sm lg:text-base bg-amber-500/20 px-4 py-1 rounded-full border border-amber-400/30">
+                            🎯 다음 단계 통과 조건: <span class="font-black text-yellow-300">500점 이상</span>
+                        </div>
+                        <button onclick="startCurrentStage()" class="font-game text-xl lg:text-2xl px-10 py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black rounded-2xl shadow-xl active:scale-95 transition flex items-center gap-2">
+                            <i class="fa-solid fa-flag-checkered"></i>
+                            <span>활동 시작 (30초)</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 스테이지 클리어 / 실패 결과 화면 -->
+            <div id="screenStageResult" class="hidden absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-md p-6">
+                <div id="resCardBorder" class="bg-gradient-to-b from-slate-900 to-blue-950 border-4 border-amber-400 rounded-3xl p-6 lg:p-8 max-w-2xl w-full shadow-2xl text-center flex flex-col items-center justify-between max-h-[92%]">
+                    <div class="flex flex-col items-center">
+                        <div id="resIconBg" class="w-16 h-16 bg-amber-400 rounded-full flex items-center justify-center text-3xl text-slate-950 mb-2 shadow-lg">
+                            <i id="resStageIcon" class="fa-solid fa-medal"></i>
+                        </div>
+                        <span id="resStageBadge" class="bg-blue-600 font-game text-xs px-3 py-0.5 rounded-full font-bold">STAGE 1 완료!</span>
+                        <h2 id="resStageTitle" class="font-game text-2xl lg:text-4xl font-black text-amber-300 my-1">숲 정화 완료!</h2>
+                        <p id="resStageMessage" class="text-emerald-300 text-sm lg:text-base font-semibold">자연이 한층 더 맑고 깨끗해졌어요!</p>
+                    </div>
+
+                    <!-- 획득 통계 박스 -->
+                    <div class="grid grid-cols-3 gap-3 w-full bg-black/40 p-3 rounded-2xl border border-white/20 my-3">
+                        <div class="text-center">
+                            <p class="text-[11px] text-gray-400 font-bold">스테이지 점수 (목표 500)</p>
+                            <p id="resStageScore" class="font-game text-xl lg:text-2xl font-black text-yellow-400">0</p>
+                        </div>
+                        <div class="text-center border-x border-white/20">
+                            <p class="text-[11px] text-gray-400 font-bold">오염물 수거율</p>
+                            <p id="resCleanRate" class="font-game text-xl lg:text-2xl font-black text-emerald-400">100%</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-[11px] text-gray-400 font-bold">누적 종합 점수</p>
+                            <p id="resTotalScore" class="font-game text-xl lg:text-2xl font-black text-cyan-300">0</p>
+                        </div>
+                    </div>
+
+                    <!-- 별점 -->
+                    <div id="resStars" class="flex gap-2 text-2xl lg:text-3xl text-amber-400 my-1">
+                        <i class="fa-solid fa-star"></i>
+                        <i class="fa-solid fa-star"></i>
+                        <i class="fa-solid fa-star"></i>
+                    </div>
+
+                    <!-- 하단 액션 버튼 -->
+                    <div class="flex gap-4">
+                        <button onclick="retryCurrentStage()" class="font-game text-base lg:text-lg px-6 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-2xl active:scale-95 transition flex items-center gap-2">
+                            <i class="fa-solid fa-rotate-left"></i>
+                            <span>다시 도전</span>
+                        </button>
+                        <button id="btnNextStage" onclick="goToNextStage()" class="font-game text-lg lg:text-xl px-8 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-black rounded-2xl shadow-lg active:scale-95 transition flex items-center gap-2">
+                            <span>다음 스테이지로!</span>
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 최종 게임 클리어 성적표 화면 -->
+            <div id="screenFinalResult" class="hidden absolute inset-0 z-40 flex items-center justify-center bg-black/90 backdrop-blur-md p-6">
+                <div class="bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-950 border-4 border-emerald-400 rounded-3xl p-6 lg:p-8 max-w-3xl w-full shadow-2xl text-center flex flex-col items-center justify-between max-h-[95%] overflow-y-auto">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-trophy text-3xl lg:text-4xl text-amber-400"></i>
+                        <h2 class="font-game text-2xl lg:text-4xl font-black text-emerald-300">지구 정화 대성공!</h2>
+                    </div>
+                    <p class="text-xs lg:text-sm text-gray-300">숲, 바다, 도시가 우리 모두의 노력으로 푸르고 깨끗해졌습니다!</p>
+
+                    <!-- 스테이지별 성적표 테이블 -->
+                    <div class="w-full my-3 bg-black/50 border border-white/20 rounded-2xl overflow-hidden">
+                        <div class="grid grid-cols-4 bg-emerald-700/60 text-emerald-200 font-game text-xs lg:text-sm py-2 px-3 font-bold border-b border-white/20">
+                            <span>스테이지</span>
+                            <span>정화 성공</span>
+                            <span>실수 감점</span>
+                            <span>최종 점수</span>
+                        </div>
+                        <div class="divide-y divide-white/10 text-xs font-semibold">
+                            <div class="grid grid-cols-4 py-2 px-3 items-center">
+                                <span class="text-emerald-300 font-game text-sm flex items-center justify-center gap-1.5"><i class="fa-solid fa-tree"></i> 1. 숲속</span>
+                                <span id="finalStg1Clean" class="text-gray-200">0개</span>
+                                <span id="finalStg1Miss" class="text-rose-400">0회</span>
+                                <span id="finalStg1Score" class="font-game text-amber-300 text-base font-bold">0점</span>
+                            </div>
+                            <div class="grid grid-cols-4 py-2 px-3 items-center">
+                                <span class="text-cyan-300 font-game text-sm flex items-center justify-center gap-1.5"><i class="fa-solid fa-water"></i> 2. 바다</span>
+                                <span id="finalStg2Clean" class="text-gray-200">0개</span>
+                                <span id="finalStg2Miss" class="text-rose-400">0회</span>
+                                <span id="finalStg2Score" class="font-game text-amber-300 text-base font-bold">0점</span>
+                            </div>
+                            <div class="grid grid-cols-4 py-2 px-3 items-center">
+                                <span class="text-indigo-300 font-game text-sm flex items-center justify-center gap-1.5"><i class="fa-solid fa-city"></i> 3. 도시</span>
+                                <span id="finalStg3Clean" class="text-gray-200">0개</span>
+                                <span id="finalStg3Miss" class="text-rose-400">0회</span>
+                                <span id="finalStg3Score" class="font-game text-amber-300 text-base font-bold">0점</span>
+                            </div>
+                        </div>
+                        <!-- 합계 바 -->
+                        <div class="grid grid-cols-4 bg-black/70 py-2.5 px-3 font-game text-sm lg:text-base font-black border-t-2 border-emerald-400 text-white">
+                            <span class="text-amber-400 col-span-2 text-left pl-3">총합 환경 지킴이 점수</span>
+                            <span class="text-right text-gray-400 text-xs font-normal self-center">최종 결과</span>
+                            <span id="finalTotalSumScore" class="text-amber-300 text-lg lg:text-xl">0점</span>
+                        </div>
+                    </div>
+
+                    <!-- 랭킹 등록 입력 -->
+                    <div class="w-full max-w-md bg-white/10 p-3 rounded-2xl border border-white/20 my-2 flex flex-col gap-1.5">
+                        <label class="text-xs text-cyan-200 font-bold">우리 모둠 / 학급 명예의 전당 등록</label>
+                        <div class="flex gap-2">
+                            <input id="inputPlayerName" type="text" maxlength="8" placeholder="모둠 또는 이름 입력 (예: 1조)" class="flex-grow px-3 py-1.5 rounded-xl bg-slate-900 border border-cyan-400/50 text-white font-bold focus:outline-none focus:ring-2 focus:ring-cyan-300 text-center text-xs lg:text-sm">
+                            <button onclick="saveScoreToLeaderboard()" class="font-game bg-amber-400 hover:bg-amber-300 text-slate-950 px-4 py-1.5 rounded-xl font-black text-sm active:scale-95 transition">
+                                기록 저장
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3 justify-center">
+                        <button onclick="returnToTitle()" class="font-game text-base lg:text-lg px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded-2xl active:scale-95 transition">
+                            <i class="fa-solid fa-house mr-1"></i> 처음으로
+                        </button>
+                        <button onclick="showLeaderboardScreen()" class="font-game text-base lg:text-lg px-6 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-2xl active:scale-95 transition">
+                            <i class="fa-solid fa-ranking-star mr-1"></i> 순위표 보기
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. 명예의 전당 화면 -->
+            <div id="screenLeaderboard" class="hidden absolute inset-0 z-40 flex items-center justify-center bg-black/85 backdrop-blur-md p-6">
+                <div class="bg-slate-900 border-4 border-amber-400 rounded-3xl p-6 lg:p-8 max-w-2xl w-full shadow-2xl flex flex-col items-center justify-between max-h-[90%]">
+                    <div class="flex items-center gap-3 mb-2">
+                        <i class="fa-solid fa-trophy text-amber-400 text-2xl lg:text-3xl"></i>
+                        <h2 class="font-game text-2xl lg:text-3xl font-black text-amber-300">명예의 전당 (교실 순위)</h2>
+                    </div>
+
+                    <div class="w-full flex-grow overflow-y-auto bg-black/40 rounded-2xl border border-white/20 p-2 my-3">
+                        <table class="w-full text-center text-xs lg:text-sm">
+                            <thead class="font-game text-amber-200 border-b border-white/20 pb-2">
+                                <tr>
+                                    <th class="py-1.5">순위</th>
+                                    <th class="py-1.5">이름 / 모둠</th>
+                                    <th class="py-1.5">최종 점수</th>
+                                    <th class="py-1.5">기록 일시</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboardTbody" class="divide-y divide-white/10 font-semibold text-gray-200"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <button onclick="clearLeaderboard()" class="px-4 py-2 bg-rose-600/80 hover:bg-rose-500 text-xs rounded-xl font-bold transition">
+                            <i class="fa-solid fa-trash mr-1"></i> 기록 초기화
+                        </button>
+                        <button onclick="closeLeaderboard()" class="font-game text-base lg:text-lg px-8 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl active:scale-95 transition">
+                            닫기
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 일시 정지 팝업 모달 -->
+            <div id="modalPause" class="hidden absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+                <div class="bg-slate-900 border-2 border-white/40 p-6 rounded-3xl text-center max-w-xs w-full shadow-2xl">
+                    <h3 class="font-game text-2xl font-black text-amber-300 mb-4">게임 일시 정지</h3>
+                    <div class="flex flex-col gap-2.5">
+                        <button onclick="togglePauseGame()" class="font-game text-lg py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl transition">계속하기</button>
+                        <button onclick="retryCurrentStage()" class="font-game text-lg py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition">스테이지 다시하기</button>
+                        <button onclick="returnToTitle()" class="font-game text-lg py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition">처음으로 나가기</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Web Audio API 사운드 합성기 및 게임 로직 스크립트 -->
+    <script>
+        /**
+         * SoundEngine: Web Audio API 기반 오디오 합성기 (외부 사운드 의존성 없음)
+         */
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        this.ctx = new AudioContext();
+                    }
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            // 쓰레기 청소 성공 사운드 (경쾌한 상승 톤)
+            playPop() {
+                if (!this.ctx || this.muted) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    const now = this.ctx.currentTime;
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(320, now);
+                    osc.frequency.exponentialRampToValueAtTime(750, now + 0.12);
+
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.13);
+                } catch(e) {}
+            }
+
+            // 고득점 오염물(폐배터리, 매연 구름 등) 청소 사운드
+            playSpecial() {
+                if (!this.ctx || this.muted) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.1);
+                    osc.frequency.exponentialRampToValueAtTime(1320, now + 0.22);
+
+                    gain.gain.setValueAtTime(0.28, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.23);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.24);
+                } catch(e) {}
+            }
+
+            // 생물/자원 오터치 감점 에러 사운드 (낮은 경고 버저음)
+            playBuzzer() {
+                if (!this.ctx || this.muted) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.linearRampToValueAtTime(90, now + 0.25);
+
+                    gain.gain.setValueAtTime(0.35, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.26);
+                } catch(e) {}
+            }
+
+            // 콤보 증가 사운드
+            playCombo(count) {
+                if (!this.ctx || this.muted) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    const baseFreq = 400 + Math.min(count, 10) * 60;
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(baseFreq, now);
+                    osc.frequency.linearRampToValueAtTime(baseFreq * 1.5, now + 0.15);
+
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.16);
+                } catch(e) {}
+            }
+
+            // 스테이지 클리어 팡파레
+            playFanfare() {
+                if (!this.ctx || this.muted) return;
+                try {
+                    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                    notes.forEach((freq, i) => {
+                        const now = this.ctx.currentTime + (i * 0.1);
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now);
+
+                        gain.gain.setValueAtTime(0.3, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+
+                        osc.start(now);
+                        osc.stop(now + 0.36);
+                    });
+                } catch(e) {}
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        /**
+         * 스테이지 메타데이터 및 타겟 정의
+         */
+        const STAGE_CONFIGS = {
+            1: {
+                id: 1,
+                name: "숲속",
+                themeClass: "from-emerald-800 to-green-950",
+                badgeColor: "bg-emerald-500",
+                icon: "fa-tree",
+                duration: 30, // 30초
+                spawnIntervalBase: 850, // ms
+                lifespanMin: 3000, // 1단계 유지 시간 (3.0초 ~ 3.5초)
+                lifespanMax: 3500,
+                hitRadiusRatio: 0.65,
+                title: "1단계: 푸른 숲을 청소해요!",
+                desc: "등산객들이 버리고 간 쓰레기를 수거하고 야생 동식물을 안전하게 지켜주세요. (500점 이상 통과)",
+                pollutants: [
+                    { id: 'plastic_bottle', name: '버려진 페트병', points: 25, icon: 'fa-bottle-water', color: '#38bdf8', size: 85, symbol: '🥤' },
+                    { id: 'can', name: '찌그러진 캔', points: 30, icon: 'fa-box', color: '#fb923c', size: 80, symbol: '🥫' },
+                    { id: 'snack_bag', name: '버려진 과자 봉지', points: 45, icon: 'fa-cookie-bite', color: '#ef4444', size: 90, isSpecial: true, symbol: '🍿' }
+                ],
+                protected: [
+                    { id: 'squirrel', name: '숲속 다람쥐', penalty: 20, icon: 'fa-shield-cat', color: '#f59e0b', size: 90, symbol: '🐿️' },
+                    { id: 'acorn', name: '생명의 도토리', penalty: 20, icon: 'fa-seedling', color: '#84cc16', size: 80, symbol: '🌰' },
+                    { id: 'deer', name: '아기 꽃사슴', penalty: 20, icon: 'fa-heart', color: '#f43f5e', size: 95, symbol: '🦌' }
+                ]
+            },
+            2: {
+                id: 2,
+                name: "바다",
+                themeClass: "from-sky-800 to-blue-950",
+                badgeColor: "bg-cyan-500",
+                icon: "fa-water",
+                duration: 30, // 30초
+                spawnIntervalBase: 550, // 빠른 스폰
+                lifespanMin: 1500, // 2단계 유지 시간: 1.5초 ~ 2.0초로 빠른 소멸
+                lifespanMax: 2000,
+                hitRadiusRatio: 0.58, // 작아진 히트박스 판정
+                title: "2단계: 맑은 바다를 구해요! [난이도 상승]",
+                desc: "속도가 빨라집니다! 바다 쓰레기를 재빠르게 낚아채고 해양생물을 지켜주세요. (500점 이상 통과)",
+                pollutants: [
+                    { id: 'plastic_bag', name: '바다 비닐봉지', points: 30, icon: 'fa-bag-shopping', color: '#cbd5e1', size: 85, symbol: '🛍️' },
+                    { id: 'ghost_net', name: '폐어망 / 그물', points: 40, icon: 'fa-network-wired', color: '#a855f7', size: 90, symbol: '🕸️' },
+                    { id: 'microplastic', name: '미세 플라스틱', points: 55, icon: 'fa-virus', color: '#ec4899', size: 85, isSpecial: true, symbol: '☣️' }
+                ],
+                protected: [
+                    { id: 'sea_turtle', name: '푸른 바다거북', penalty: 30, icon: 'fa-shield-halved', color: '#10b981', size: 95, symbol: '🐢' },
+                    { id: 'coral', name: '산호초', penalty: 30, icon: 'fa-fan', color: '#f43f5e', size: 85, symbol: '🪸' },
+                    { id: 'starfish', name: '아기 불가사리', penalty: 30, icon: 'fa-star', color: '#facc15', size: 80, symbol: '⭐' }
+                ]
+            },
+            3: {
+                id: 3,
+                name: "도시",
+                themeClass: "from-slate-800 to-zinc-950",
+                badgeColor: "bg-indigo-500",
+                icon: "fa-city",
+                duration: 30, // 30초
+                spawnIntervalBase: 380, // 매우 빠른 스폰
+                lifespanMin: 1000, // 3단계 유지 시간: 1.0초 ~ 1.3초 번개 퇴장
+                lifespanMax: 1300,
+                hitRadiusRatio: 0.50, // 매우 정밀한 터치 필요
+                title: "3단계: 스마트 친환경 도시! [최고 난이도]",
+                desc: "초고속 스폰! 매연과 전자 폐기물을 순식간에 터치하세요. 실수 시 큰 감점! (500점 이상 통과)",
+                pollutants: [
+                    { id: 'food_waste', name: '음식물 쓰레기', points: 35, icon: 'fa-trash-can', color: '#a3e635', size: 85, symbol: '🥡' },
+                    { id: 'e_waste', name: '버려진 전자기기', points: 45, icon: 'fa-microchip', color: '#f97316', size: 90, symbol: '💻' },
+                    { id: 'smog_cloud', name: '유독 매연 스모그', points: 65, icon: 'fa-smog', color: '#94a3b8', size: 95, isSpecial: true, symbol: '💨' }
+                ],
+                protected: [
+                    { id: 'solar_panel', name: '태양광 발전 패널', penalty: 40, icon: 'fa-solar-panel', color: '#38bdf8', size: 90, symbol: '☀️' },
+                    { id: 'clean_water', name: '맑은 물방울', penalty: 40, icon: 'fa-droplet', color: '#67e8f9', size: 85, symbol: '💧' },
+                    { id: 'city_tree', name: '가로수 나무', penalty: 40, icon: 'fa-tree', color: '#22c55e', size: 90, symbol: '🌳' }
+                ]
+            }
+        };
+
+        /**
+         * 게임 상태 관리 객체
+         */
+        const Game = {
+            currentStageId: 1,
+            isPlaying: false,
+            isPaused: false,
+            score: 0,
+            combo: 0,
+            maxCombo: 0,
+            timeRemaining: 30,
+            timerInterval: null,
+            spawnIntervalId: null,
+            animationFrameId: null,
+
+            // 스테이지별 개별 누적 통계
+            stageRecords: {
+                1: { cleaned: 0, missedPenalty: 0, totalSpawnedPollutants: 0, score: 0 },
+                2: { cleaned: 0, missedPenalty: 0, totalSpawnedPollutants: 0, score: 0 },
+                3: { cleaned: 0, missedPenalty: 0, totalSpawnedPollutants: 0, score: 0 }
+            },
+
+            // 캔버스 객체 목록
+            entities: [],
+            lastFrameTime: 0,
+            lastSpawnTime: 0
+        };
+
+        // 캔버스 관련 참조
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const titleEarthCanvas = document.getElementById('titleEarthCanvas');
+        const titleEarthCtx = titleEarthCanvas ? titleEarthCanvas.getContext('2d') : null;
+        const effectOverlay = document.getElementById('effectOverlay');
+        const tvStageWrapper = document.getElementById('tvStageWrapper');
+
+        // TV / 칠판 화면 비율 및 캔버스 리사이즈 핸들러
+        function resizeCanvas() {
+            if (!canvas || !canvas.parentElement) return;
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+
+            if (titleEarthCanvas && titleEarthCanvas.parentElement) {
+                titleEarthCanvas.width = titleEarthCanvas.parentElement.clientWidth;
+                titleEarthCanvas.height = titleEarthCanvas.parentElement.clientHeight;
+                initStarfield();
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        /**
+         * 표지화면 자전하는 지구(Earth) 및 우주 애니메이션 엔진
+         */
+        let earthRotation = 0;
+        let titleAnimFrame = null;
+        let starfield = [];
+
+        function initStarfield() {
+            if (!titleEarthCanvas) return;
+            const w = titleEarthCanvas.width;
+            const h = titleEarthCanvas.height;
+            starfield = [];
+            for (let i = 0; i < 90; i++) {
+                starfield.push({
+                    x: Math.random() * w,
+                    y: Math.random() * h,
+                    r: Math.random() * 2 + 0.5,
+                    alpha: Math.random() * 0.8 + 0.2,
+                    speed: Math.random() * 0.02 + 0.01
+                });
+            }
+        }
+
+        // 지표면 대륙 형상 데이터 (경도, 위도 점 데이터)
+        const continents = [
+            // 아시아 / 유라시아
+            [{lon: 40, lat: 50}, {lon: 90, lat: 60}, {lon: 130, lat: 45}, {lon: 110, lat: 20}, {lon: 80, lat: 10}, {lon: 50, lat: 25}],
+            // 한반도 & 동아시아 포인트
+            [{lon: 120, lat: 38}, {lon: 128, lat: 37}, {lon: 130, lat: 32}, {lon: 122, lat: 30}],
+            // 아프리카 대륙
+            [{lon: 10, lat: 30}, {lon: 35, lat: 25}, {lon: 40, lat: 5}, {lon: 25, lat: -30}, {lon: 15, lat: -25}, {lon: 0, lat: 5}],
+            // 아메리카 대륙
+            [{lon: -110, lat: 55}, {lon: -80, lat: 45}, {lon: -80, lat: 25}, {lon: -100, lat: 20}, {lon: -120, lat: 35}],
+            [{lon: -75, lat: 10}, {lon: -40, lat: -5}, {lon: -55, lat: -35}, {lon: -70, lat: -20}],
+            // 오세아니아 대륙
+            [{lon: 120, lat: -20}, {lon: 145, lat: -18}, {lon: 140, lat: -35}, {lon: 120, lat: -32}]
+        ];
+
+        function renderTitleRotatingEarth() {
+            const titleScreen = document.getElementById('screenTitle');
+            if (titleScreen.classList.contains('hidden') || !titleEarthCtx) return;
+
+            const w = titleEarthCanvas.width;
+            const h = titleEarthCanvas.height;
+            titleEarthCtx.clearRect(0, 0, w, h);
+
+            const now = performance.now();
+
+            // 1. 우주 배경 별빛 렌더링 (반짝임)
+            starfield.forEach(s => {
+                const twinkle = Math.sin(now * s.speed) * 0.3 + s.alpha;
+                titleEarthCtx.fillStyle = `rgba(255, 255, 255, ${Math.max(0.1, twinkle)})`;
+                titleEarthCtx.beginPath();
+                titleEarthCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                titleEarthCtx.fill();
+            });
+
+            // 2. 지구 위치 및 반지름 계산 (중앙보다 약간 아래 또는 화면 정중앙)
+            const cx = w * 0.5;
+            const cy = h * 0.52;
+            const radius = Math.min(w, h) * 0.28;
+
+            // 지구 외부 대기광 (Atmosphere Glow)
+            const atmosGrad = titleEarthCtx.createRadialGradient(cx, cy, radius * 0.92, cx, cy, radius * 1.35);
+            atmosGrad.addColorStop(0, 'rgba(56, 189, 248, 0.45)');
+            atmosGrad.addColorStop(0.5, 'rgba(14, 165, 233, 0.2)');
+            atmosGrad.addColorStop(1, 'rgba(14, 165, 233, 0)');
+            titleEarthCtx.fillStyle = atmosGrad;
+            titleEarthCtx.beginPath();
+            titleEarthCtx.arc(cx, cy, radius * 1.35, 0, Math.PI * 2);
+            titleEarthCtx.fill();
+
+            // 3. 지구 본체 구체 (푸른 바다 구체 클리핑)
+            titleEarthCtx.save();
+            titleEarthCtx.beginPath();
+            titleEarthCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+            titleEarthCtx.clip();
+
+            // 깊은 심해 바다 그라데이션
+            const oceanGrad = titleEarthCtx.createRadialGradient(cx - radius * 0.35, cy - radius * 0.35, radius * 0.1, cx, cy, radius);
+            oceanGrad.addColorStop(0, '#0284c7');
+            oceanGrad.addColorStop(0.6, '#0369a1');
+            oceanGrad.addColorStop(1, '#082f49');
+            titleEarthCtx.fillStyle = oceanGrad;
+            titleEarthCtx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+            // 4. 자전하는 대륙 렌더링 (경도 자전 투영)
+            earthRotation = (earthRotation + 0.35) % 360; // 초당 부드럽게 자전
+            const rotRad = (earthRotation * Math.PI) / 180;
+
+            titleEarthCtx.fillStyle = '#22c55e'; // 대륙 초록색
+
+            continents.forEach(poly => {
+                titleEarthCtx.beginPath();
+                let firstPoint = true;
+                let visibleAny = false;
+
+                poly.forEach(pt => {
+                    // 구면 투영 (3D sphere rotation)
+                    const lonRad = ((pt.lon * Math.PI) / 180) + rotRad;
+                    const latRad = (pt.lat * Math.PI) / 180;
+
+                    const cosLat = Math.cos(latRad);
+                    const sinLat = Math.sin(latRad);
+                    const cosLon = Math.cos(lonRad);
+                    const sinLon = Math.sin(lonRad);
+
+                    // 지구 앞면(가시 영역)인지 판정
+                    if (cosLon > -0.15) {
+                        visibleAny = true;
+                        const projX = cx + radius * (sinLon * cosLat);
+                        const projY = cy - radius * sinLat;
+
+                        if (firstPoint) {
+                            titleEarthCtx.moveTo(projX, projY);
+                            firstPoint = false;
+                        } else {
+                            titleEarthCtx.lineTo(projX, projY);
+                        }
+                    }
+                });
+
+                if (visibleAny) {
+                    titleEarthCtx.closePath();
+                    titleEarthCtx.shadowColor = '#15803d';
+                    titleEarthCtx.shadowBlur = 4;
+                    titleEarthCtx.fill();
+                    titleEarthCtx.shadowBlur = 0;
+                }
+            });
+
+            // 5. 대기 구름층 (대륙보다 약간 빠른 속도로 흐르는 반투명 구름)
+            const cloudRotRad = ((earthRotation * 1.25) * Math.PI) / 180;
+            titleEarthCtx.fillStyle = 'rgba(255, 255, 255, 0.28)';
+            for (let i = 0; i < 6; i++) {
+                const cloudLon = ((i * 60) * Math.PI / 180) + cloudRotRad;
+                const cloudCos = Math.cos(cloudLon);
+                if (cloudCos > 0) {
+                    const clX = cx + radius * Math.sin(cloudLon) * 0.9;
+                    const clY = cy + Math.sin(i * 1.5) * (radius * 0.45);
+                    titleEarthCtx.beginPath();
+                    titleEarthCtx.ellipse(clX, clY, radius * 0.35 * cloudCos, radius * 0.08, 0.1, 0, Math.PI * 2);
+                    titleEarthCtx.fill();
+                }
+            }
+
+            // 6. 구체 3D 입체 음영 (빛과 그림자 레이어)
+            const shadowGrad = titleEarthCtx.createRadialGradient(
+                cx - radius * 0.45, cy - radius * 0.45, radius * 0.2,
+                cx, cy, radius
+            );
+            shadowGrad.addColorStop(0, 'rgba(255, 255, 255, 0.22)');
+            shadowGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+            shadowGrad.addColorStop(0.85, 'rgba(3, 7, 18, 0.55)');
+            shadowGrad.addColorStop(1, 'rgba(2, 6, 23, 0.92)');
+            titleEarthCtx.fillStyle = shadowGrad;
+            titleEarthCtx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+            titleEarthCtx.restore();
+
+            // 7. 지구 주변을 공전하는 궤도선 및 친환경 위성
+            const orbitRad = (now * 0.0012);
+            const orbitA = radius * 1.45;
+            const orbitB = radius * 0.55;
+            
+            // 궤도 타원 가이드선
+            titleEarthCtx.save();
+            titleEarthCtx.translate(cx, cy);
+            titleEarthCtx.rotate(-0.25);
+            titleEarthCtx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+            titleEarthCtx.lineWidth = 1.5;
+            titleEarthCtx.setLineDash([6, 8]);
+            titleEarthCtx.beginPath();
+            titleEarthCtx.ellipse(0, 0, orbitA, orbitB, 0, 0, Math.PI * 2);
+            titleEarthCtx.stroke();
+            titleEarthCtx.setLineDash([]);
+
+            // 인공위성/빛나는 별
+            const satX = Math.cos(orbitRad) * orbitA;
+            const satY = Math.sin(orbitRad) * orbitB;
+            titleEarthCtx.fillStyle = '#facc15';
+            titleEarthCtx.shadowColor = '#fbbf24';
+            titleEarthCtx.shadowBlur = 15;
+            titleEarthCtx.beginPath();
+            titleEarthCtx.arc(satX, satY, 5, 0, Math.PI * 2);
+            titleEarthCtx.fill();
+            titleEarthCtx.restore();
+
+            titleAnimFrame = requestAnimationFrame(renderTitleRotatingEarth);
+        }
+
+        function startTitleEarthAnimation() {
+            if (!titleAnimFrame) {
+                renderTitleRotatingEarth();
+            }
+        }
+
+        function stopTitleEarthAnimation() {
+            if (titleAnimFrame) {
+                cancelAnimationFrame(titleAnimFrame);
+                titleAnimFrame = null;
+            }
+        }
+
+        /**
+         * 1. 스테이지별 테마 배경 그리기 (숲, 바다, 도시)
+         */
+        function renderStageBackground(stageId) {
+            const w = canvas.width;
+            const h = canvas.height;
+
+            if (stageId === 1) {
+                // [숲속 배경: 햇살, 원경 산맥, 다층 수목 및 잔디 덤불]
+                const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+                skyGrad.addColorStop(0, '#134e4a');
+                skyGrad.addColorStop(0.35, '#065f46');
+                skyGrad.addColorStop(0.7, '#047857');
+                skyGrad.addColorStop(1, '#064e3b');
+                ctx.fillStyle = skyGrad;
+                ctx.fillRect(0, 0, w, h);
+
+                // 원경 안개 낀 산맥 실루엣
+                ctx.fillStyle = '#0f766e';
+                ctx.beginPath();
+                ctx.moveTo(0, h * 0.65);
+                ctx.bezierCurveTo(w * 0.25, h * 0.45, w * 0.45, h * 0.75, w * 0.7, h * 0.5);
+                ctx.bezierCurveTo(w * 0.85, h * 0.42, w * 0.95, h * 0.6, w, h * 0.58);
+                ctx.lineTo(w, h);
+                ctx.lineTo(0, h);
+                ctx.fill();
+
+                // 숲속 틈새 햇살(Sunbeams)
+                ctx.save();
+                ctx.fillStyle = 'rgba(254, 240, 138, 0.08)';
+                for (let i = 0; i < 6; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(w * (0.1 + i * 0.16), 0);
+                    ctx.lineTo(w * (0.1 + i * 0.16) + 70, 0);
+                    ctx.lineTo(w * (0.1 + i * 0.16) + 260, h);
+                    ctx.lineTo(w * (0.1 + i * 0.16) + 150, h);
+                    ctx.fill();
+                }
+                ctx.restore();
+
+                // 중경 울창한 나무군
+                ctx.fillStyle = '#064e3b';
+                for (let i = 0; i < 9; i++) {
+                    const tx = w * (0.04 + i * 0.12);
+                    const treeHeight = h * 0.48;
+                    // 나무 기둥
+                    ctx.fillStyle = '#451a03';
+                    ctx.fillRect(tx - 12, h - treeHeight, 24, treeHeight);
+                    // 풍성한 나뭇잎 구름
+                    ctx.fillStyle = i % 2 === 0 ? '#047857' : '#059669';
+                    ctx.beginPath();
+                    ctx.arc(tx, h - treeHeight, 65, 0, Math.PI * 2);
+                    ctx.arc(tx - 35, h - treeHeight + 20, 50, 0, Math.PI * 2);
+                    ctx.arc(tx + 35, h - treeHeight + 20, 50, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 근경 언덕 및 풀숲
+                ctx.fillStyle = '#022c22';
+                ctx.beginPath();
+                ctx.moveTo(0, h - 70);
+                ctx.quadraticCurveTo(w * 0.35, h - 120, w * 0.65, h - 60);
+                ctx.quadraticCurveTo(w * 0.85, h - 30, w, h - 75);
+                ctx.lineTo(w, h);
+                ctx.lineTo(0, h);
+                ctx.fill();
+
+                // 잔디 디테일
+                ctx.fillStyle = '#10b981';
+                for (let x = 10; x < w; x += 30) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, h - 40);
+                    ctx.lineTo(x + 6, h - 70);
+                    ctx.lineTo(x + 12, h - 40);
+                    ctx.fill();
+                }
+
+            } else if (stageId === 2) {
+                // [바다 배경: 심해 수중 광선, 모래 언덕, 산호초 & 해초 디테일]
+                const seaGrad = ctx.createLinearGradient(0, 0, 0, h);
+                seaGrad.addColorStop(0, '#0369a1');
+                seaGrad.addColorStop(0.3, '#0284c7');
+                seaGrad.addColorStop(0.7, '#075985');
+                seaGrad.addColorStop(1, '#082f49');
+                ctx.fillStyle = seaGrad;
+                ctx.fillRect(0, 0, w, h);
+
+                // 수중 빛줄기(Caustics / Light Rays)
+                ctx.save();
+                ctx.fillStyle = 'rgba(224, 242, 254, 0.14)';
+                for (let i = 0; i < 7; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(w * (0.05 + i * 0.15), 0);
+                    ctx.lineTo(w * (0.05 + i * 0.15) + 50, 0);
+                    ctx.lineTo(w * (0.05 + i * 0.15) + 190, h * 0.88);
+                    ctx.lineTo(w * (0.05 + i * 0.15) + 120, h * 0.88);
+                    ctx.fill();
+                }
+                ctx.restore();
+
+                // 떠다니는 기포/버블 배경
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+                for (let i = 0; i < 15; i++) {
+                    const bx = (w * (i * 0.07 + 0.03)) % w;
+                    const by = (h * 0.2 + (i * 47)) % (h * 0.7);
+                    ctx.beginPath();
+                    ctx.arc(bx, by, (i % 4) + 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 바다 밑 모래사장 (해저)
+                ctx.fillStyle = '#b45309';
+                ctx.beginPath();
+                ctx.moveTo(0, h - 60);
+                ctx.quadraticCurveTo(w * 0.25, h - 110, w * 0.55, h - 50);
+                ctx.quadraticCurveTo(w * 0.8, h - 25, w, h - 70);
+                ctx.lineTo(w, h);
+                ctx.lineTo(0, h);
+                ctx.fill();
+
+                // 해초 덤불
+                ctx.fillStyle = '#059669';
+                for (let i = 0; i < 11; i++) {
+                    const sx = w * (0.05 + i * 0.09);
+                    ctx.beginPath();
+                    ctx.ellipse(sx, h - 50, 10, 65, 0.15 * Math.sin(i), 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 알록달록 해저 산호 바위
+                ctx.fillStyle = '#f43f5e';
+                for (let i = 0; i < 6; i++) {
+                    const cx = w * (0.12 + i * 0.16);
+                    ctx.beginPath();
+                    ctx.arc(cx, h - 45, 28, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+            } else {
+                // [도시 배경: 황혼/야경 스카이라인, 고층 빌딩과 유리창 반사, 조명 도로]
+                const cityGrad = ctx.createLinearGradient(0, 0, 0, h);
+                cityGrad.addColorStop(0, '#0f172a');
+                cityGrad.addColorStop(0.4, '#1e1b4b');
+                cityGrad.addColorStop(0.75, '#312e81');
+                cityGrad.addColorStop(1, '#09090b');
+                ctx.fillStyle = cityGrad;
+                ctx.fillRect(0, 0, w, h);
+
+                // 원경 은은한 빌딩 실루엣 (어두운 보라)
+                ctx.fillStyle = '#1e1b4b';
+                const fWidth = 85;
+                for (let x = 0; x < w; x += fWidth + 15) {
+                    const fHeight = 200 + ((x * 43) % 220);
+                    ctx.fillRect(x, h - fHeight - 50, fWidth, fHeight);
+                }
+
+                // 근경 고층 빌딩들 및 창문 불빛
+                ctx.fillStyle = '#0f172a';
+                for (let x = 15; x < w; x += 115) {
+                    const bHeight = 150 + ((x * 61) % 190);
+                    ctx.fillRect(x, h - bHeight - 50, 95, bHeight);
+
+                    // 창문 그리드 (노란색/시안색 불빛)
+                    for (let wx = x + 12; wx < x + 85; wx += 22) {
+                        for (let wy = h - bHeight - 35; wy < h - 70; wy += 30) {
+                            if ((wx * 7 + wy * 13) % 5 > 1) {
+                                ctx.fillStyle = (wx + wy) % 2 === 0 ? 'rgba(250, 204, 21, 0.65)' : 'rgba(56, 189, 248, 0.55)';
+                                ctx.fillRect(wx, wy, 12, 14);
+                            }
+                        }
+                    }
+                    ctx.fillStyle = '#0f172a';
+                }
+
+                // 아스팔트 도로
+                ctx.fillStyle = '#18181b';
+                ctx.fillRect(0, h - 50, w, 50);
+
+                // 도로 노란색 중앙 차선
+                ctx.strokeStyle = '#facc15';
+                ctx.lineWidth = 4;
+                ctx.setLineDash([25, 25]);
+                ctx.beginPath();
+                ctx.moveTo(0, h - 25);
+                ctx.lineTo(w, h - 25);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+
+        /**
+         * 실물 형태 일러스트(Realistic Objects) 벡터 드로잉 라이브러리
+         */
+        function drawRealisticObject(id, size, isPollutant) {
+            const s = size * 0.52;
+
+            // 1. 오염물 vs 보호물 시각 구분을 극대화하는 배경 오라 & 심볼 뱃지
+            ctx.save();
+            if (isPollutant) {
+                // [오염물: 붉은/주황 유독 경고 아우라 + 회색 매연 링]
+                const auraGrad = ctx.createRadialGradient(0, 0, s * 0.4, 0, 0, s * 1.25);
+                auraGrad.addColorStop(0, 'rgba(239, 68, 68, 0.45)');
+                auraGrad.addColorStop(0.7, 'rgba(249, 115, 22, 0.25)');
+                auraGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+                ctx.fillStyle = auraGrad;
+                ctx.beginPath();
+                ctx.arc(0, 0, s * 1.25, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 외곽 위험 점선 링
+                ctx.strokeStyle = 'rgba(252, 165, 165, 0.85)';
+                ctx.lineWidth = 3.5;
+                ctx.setLineDash([8, 6]);
+                ctx.beginPath();
+                ctx.arc(0, 0, s * 1.05, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            } else {
+                // [보호물: 청정 에메랄드 생명 보호막 + 빛나는 링]
+                const shieldGrad = ctx.createRadialGradient(0, 0, s * 0.4, 0, 0, s * 1.25);
+                shieldGrad.addColorStop(0, 'rgba(52, 211, 153, 0.45)');
+                shieldGrad.addColorStop(0.7, 'rgba(16, 185, 129, 0.2)');
+                shieldGrad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+                ctx.fillStyle = shieldGrad;
+                ctx.beginPath();
+                ctx.arc(0, 0, s * 1.25, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 외곽 청정 황금 실선 링
+                ctx.strokeStyle = '#34d399';
+                ctx.lineWidth = 3.5;
+                ctx.shadowColor = '#10b981';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(0, 0, s * 1.05, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+            ctx.restore();
+
+            switch(id) {
+                // 1. 페트병 (뚜렷한 입체 푸른색 물병)
+                case 'plastic_bottle': {
+                    // 병 본체
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.strokeStyle = '#0369a1';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.roundRect(-s * 0.38, -s * 0.5, s * 0.76, s * 1.2, 12);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 병목 및 뚜껑
+                    ctx.fillStyle = '#0284c7';
+                    ctx.fillRect(-s * 0.2, -s * 0.78, s * 0.4, s * 0.3);
+                    ctx.strokeRect(-s * 0.2, -s * 0.78, s * 0.4, s * 0.3);
+                    ctx.fillStyle = '#f87171'; // 눈에 띄는 빨간 뚜껑
+                    ctx.fillRect(-s * 0.24, -s * 0.95, s * 0.48, s * 0.2);
+                    ctx.strokeRect(-s * 0.24, -s * 0.95, s * 0.48, s * 0.2);
+                    // 중앙 라벨 & 재활용 마크
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(-s * 0.38, -s * 0.1, s * 0.76, s * 0.45);
+                    ctx.strokeRect(-s * 0.38, -s * 0.1, s * 0.76, s * 0.45);
+                    ctx.fillStyle = '#0284c7';
+                    ctx.font = `900 ${s * 0.3}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('PET', 0, s * 0.12);
+                    // 광택선
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+                    ctx.fillRect(-s * 0.28, -s * 0.4, 4, s * 0.9);
+                    break;
+                }
+                // 2. 찌그러진 음료수 캔
+                case 'can': {
+                    ctx.fillStyle = '#f97316';
+                    ctx.strokeStyle = '#7c2d12';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.45, -s * 0.65);
+                    ctx.lineTo(s * 0.45, -s * 0.65);
+                    ctx.lineTo(s * 0.4, -s * 0.1);
+                    ctx.lineTo(s * 0.2, s * 0.05); // 주름진 캔
+                    ctx.lineTo(s * 0.42, s * 0.65);
+                    ctx.lineTo(-s * 0.42, s * 0.65);
+                    ctx.lineTo(-s * 0.22, 0);
+                    ctx.lineTo(-s * 0.45, -s * 0.1);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    // 캔 은색 림 및 뚜껑 탭
+                    ctx.fillStyle = '#e2e8f0';
+                    ctx.beginPath();
+                    ctx.ellipse(0, -s * 0.65, s * 0.45, s * 0.18, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.fillStyle = '#475569';
+                    ctx.beginPath();
+                    ctx.ellipse(0, -s * 0.65, s * 0.18, s * 0.08, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // CAN 텍스트 인쇄
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = `900 ${s * 0.28}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('CAN', 0, s * 0.25);
+                    break;
+                }
+                // 3. 버려진 과자 비닐봉지 (찢어지고 구겨진 쓰레기 봉지)
+                case 'snack_bag': {
+                    ctx.fillStyle = '#ef4444'; // 눈에 확 띄는 빨간색 과자 봉지
+                    ctx.strokeStyle = '#7f1d1d';
+                    ctx.lineWidth = 4;
+                    
+                    // 구겨지고 뜯어진 과자 봉지 외형
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.48, -s * 0.7);
+                    // 상단 지그재그 톱니 개봉선
+                    ctx.lineTo(-s * 0.25, -s * 0.62);
+                    ctx.lineTo(0, -s * 0.72);
+                    ctx.lineTo(s * 0.25, -s * 0.6);
+                    ctx.lineTo(s * 0.48, -s * 0.7);
+                    // 우측 주름진 면
+                    ctx.lineTo(s * 0.42, 0);
+                    ctx.lineTo(s * 0.52, s * 0.65);
+                    // 하단 톱니 접착면
+                    ctx.lineTo(s * 0.2, s * 0.58);
+                    ctx.lineTo(0, s * 0.68);
+                    ctx.lineTo(-s * 0.25, s * 0.6);
+                    ctx.lineTo(-s * 0.48, s * 0.68);
+                    // 좌측 주름
+                    ctx.lineTo(-s * 0.38, 0);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // 노란색 지그재그 패턴 스트라이프
+                    ctx.fillStyle = '#facc15';
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.4, -s * 0.15);
+                    ctx.lineTo(s * 0.4, -s * 0.05);
+                    ctx.lineTo(s * 0.38, s * 0.2);
+                    ctx.lineTo(-s * 0.42, s * 0.1);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // 봉지 중앙에 버려진 'SNACK' 로고 텍스트
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = `900 ${s * 0.23}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('CHIP', 0, s * 0.06);
+
+                    // 찢겨진 틈새와 부스러기 연출
+                    ctx.strokeStyle = '#450a0a';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(s * 0.1, -s * 0.65);
+                    ctx.lineTo(s * 0.22, -s * 0.3);
+                    ctx.stroke();
+
+                    // 튀어나온 과자 부스러기
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.beginPath();
+                    ctx.arc(s * 0.32, -s * 0.35, 4, 0, Math.PI * 2);
+                    ctx.arc(s * 0.28, -s * 0.18, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                // 4. 다람쥐 (선명한 밤색 다람쥐와 도토리)
+                case 'squirrel': {
+                    ctx.lineWidth = 3.5;
+                    ctx.strokeStyle = '#451a03';
+                    // 풍성한 꼬리
+                    ctx.fillStyle = '#d97706';
+                    ctx.beginPath();
+                    ctx.ellipse(s * 0.38, -s * 0.15, s * 0.42, s * 0.65, 0.4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 몸통
+                    ctx.fillStyle = '#b45309';
+                    ctx.beginPath();
+                    ctx.ellipse(-s * 0.1, s * 0.25, s * 0.4, s * 0.48, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 배 털
+                    ctx.fillStyle = '#fffbeb';
+                    ctx.beginPath();
+                    ctx.ellipse(-s * 0.12, s * 0.32, s * 0.22, s * 0.3, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    // 머리 & 귀
+                    ctx.fillStyle = '#b45309';
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.22, -s * 0.3, s * 0.35, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.35, -s * 0.6, s * 0.12, 0, Math.PI * 2);
+                    ctx.arc(-s * 0.1, -s * 0.6, s * 0.12, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 눈 & 코
+                    ctx.fillStyle = '#0f172a';
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.3, -s * 0.32, 5, 0, Math.PI * 2);
+                    ctx.arc(-s * 0.42, -s * 0.22, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                // 5. 생명의 도토리
+                case 'acorn': {
+                    ctx.strokeStyle = '#451a03';
+                    ctx.lineWidth = 4;
+                    // 열매 본체
+                    ctx.fillStyle = '#b45309';
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.48, -s * 0.05);
+                    ctx.quadraticCurveTo(-s * 0.48, s * 0.75, 0, s * 0.9);
+                    ctx.quadraticCurveTo(s * 0.48, s * 0.75, s * 0.48, -s * 0.05);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    // 깍지(모자) 격자무늬
+                    ctx.fillStyle = '#78350f';
+                    ctx.beginPath();
+                    ctx.arc(0, -s * 0.05, s * 0.52, Math.PI, 0);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 꼭지
+                    ctx.beginPath();
+                    ctx.moveTo(0, -s * 0.55);
+                    ctx.quadraticCurveTo(s * 0.15, -s * 0.9, s * 0.3, -s * 0.85);
+                    ctx.stroke();
+                    // 하이라이트
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+                    ctx.beginPath();
+                    ctx.ellipse(-s * 0.22, s * 0.3, 5, 16, -0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                // 6. 아기 꽃사슴
+                case 'deer': {
+                    ctx.strokeStyle = '#451a03';
+                    ctx.lineWidth = 3.5;
+                    // 사슴 머리
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, s * 0.45, s * 0.55, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 주둥이
+                    ctx.fillStyle = '#fef3c7';
+                    ctx.beginPath();
+                    ctx.ellipse(0, s * 0.35, s * 0.28, s * 0.22, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.fillStyle = '#0f172a';
+                    ctx.beginPath();
+                    ctx.arc(0, s * 0.26, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                    // 뿔
+                    ctx.strokeStyle = '#78350f';
+                    ctx.lineWidth = 4.5;
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.2, -s * 0.45); ctx.lineTo(-s * 0.5, -s * 0.9);
+                    ctx.moveTo(-s * 0.35, -s * 0.65); ctx.lineTo(-s * 0.15, -s * 0.8);
+                    ctx.moveTo(s * 0.2, -s * 0.45); ctx.lineTo(s * 0.5, -s * 0.9);
+                    ctx.moveTo(s * 0.35, -s * 0.65); ctx.lineTo(s * 0.15, -s * 0.8);
+                    ctx.stroke();
+                    // 초롱초롱한 큰 눈
+                    ctx.fillStyle = '#0f172a';
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.22, -s * 0.05, 6, 0, Math.PI * 2);
+                    ctx.arc(s * 0.22, -s * 0.05, 6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.24, -s * 0.08, 2.5, 0, Math.PI * 2);
+                    ctx.arc(s * 0.2, -s * 0.08, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                // 7. 바다 비닐봉지 (찢겨진 비닐백)
+                case 'plastic_bag': {
+                    ctx.fillStyle = '#e2e8f0';
+                    ctx.strokeStyle = '#475569';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.35, -s * 0.8);
+                    ctx.lineTo(-s * 0.15, -s * 0.8);
+                    ctx.lineTo(-s * 0.1, -s * 0.3);
+                    ctx.lineTo(s * 0.1, -s * 0.3);
+                    ctx.lineTo(s * 0.15, -s * 0.8);
+                    ctx.lineTo(s * 0.35, -s * 0.8);
+                    ctx.quadraticCurveTo(s * 0.75, 0, s * 0.5, s * 0.8);
+                    ctx.lineTo(-s * 0.5, s * 0.8);
+                    ctx.quadraticCurveTo(-s * 0.75, 0, -s * 0.35, -s * 0.8);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    // 유독 폐기물 해골/X 마크
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.2, s * 0.1); ctx.lineTo(s * 0.2, s * 0.5);
+                    ctx.moveTo(s * 0.2, s * 0.1); ctx.lineTo(-s * 0.2, s * 0.5);
+                    ctx.stroke();
+                    break;
+                }
+                // 8. 유령 폐어망 그물
+                case 'ghost_net': {
+                    ctx.fillStyle = 'rgba(168, 85, 247, 0.4)';
+                    ctx.strokeStyle = '#6b21a8';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, s * 0.75, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 그물망 마름모 격자
+                    ctx.strokeStyle = '#a855f7';
+                    ctx.lineWidth = 3.5;
+                    for (let i = -s * 0.5; i <= s * 0.5; i += s * 0.28) {
+                        ctx.beginPath();
+                        ctx.moveTo(i, -s * 0.6); ctx.lineTo(i, s * 0.6);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(-s * 0.6, i); ctx.lineTo(s * 0.6, i);
+                        ctx.stroke();
+                    }
+                    // 빨간 플라스틱 부표
+                    ctx.fillStyle = '#ef4444';
+                    ctx.strokeStyle = '#991b1b';
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.45, -s * 0.45, 9, 0, Math.PI * 2);
+                    ctx.arc(s * 0.45, s * 0.35, 9, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    break;
+                }
+                // 9. 미세 플라스틱 덩어리 (유독 세균/플라스틱 입자)
+                case 'microplastic': {
+                    ctx.fillStyle = '#ec4899';
+                    ctx.strokeStyle = '#831843';
+                    ctx.lineWidth = 4;
+                    const spikes = 8;
+                    ctx.beginPath();
+                    for (let i = 0; i < spikes * 2; i++) {
+                        const r = i % 2 === 0 ? s * 0.8 : s * 0.42;
+                        const angle = (i * Math.PI) / spikes;
+                        const px = Math.cos(angle) * r;
+                        const py = Math.sin(angle) * r;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    // 유독 생화학 바이오해저드 마크 느낌
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, s * 0.26, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#be185d';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, s * 0.14, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                // 10. 푸른 바다거북
+                case 'sea_turtle': {
+                    ctx.strokeStyle = '#064e3b';
+                    ctx.lineWidth = 4;
+                    // 등껍질
+                    ctx.fillStyle = '#10b981';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, s * 0.52, s * 0.65, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 거북이 등껍질 무늬
+                    ctx.fillStyle = '#6ee7b7';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, s * 0.28, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 머리
+                    ctx.fillStyle = '#059669';
+                    ctx.beginPath();
+                    ctx.arc(0, -s * 0.78, s * 0.24, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 눈
+                    ctx.fillStyle = '#0f172a';
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.12, -s * 0.82, 4, 0, Math.PI * 2);
+                    ctx.arc(s * 0.12, -s * 0.82, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    // 앞 지느러미
+                    ctx.fillStyle = '#059669';
+                    ctx.beginPath();
+                    ctx.ellipse(-s * 0.7, -s * 0.2, s * 0.38, s * 0.16, -0.6, 0, Math.PI * 2);
+                    ctx.ellipse(s * 0.7, -s * 0.2, s * 0.38, s * 0.16, 0.6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    break;
+                }
+                // 11. 산호초
+                case 'coral': {
+                    ctx.strokeStyle = '#be123c';
+                    ctx.lineWidth = 4.5;
+                    ctx.fillStyle = '#fb7185';
+                    ctx.beginPath();
+                    ctx.moveTo(0, s * 0.85);
+                    ctx.lineTo(0, s * 0.2);
+                    ctx.lineTo(-s * 0.45, -s * 0.3);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.48, -s * 0.35, s * 0.18, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(0, s * 0.1);
+                    ctx.lineTo(s * 0.45, -s * 0.35);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(s * 0.48, -s * 0.4, s * 0.18, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(0, s * 0.2);
+                    ctx.lineTo(0, -s * 0.7);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(0, -s * 0.75, s * 0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    break;
+                }
+                // 12. 아기 불가사리
+                case 'starfish': {
+                    ctx.fillStyle = '#facc15';
+                    ctx.strokeStyle = '#a16207';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    for (let i = 0; i < 10; i++) {
+                        const r = i % 2 === 0 ? s * 0.85 : s * 0.38;
+                        const angle = (i * Math.PI) / 5 - Math.PI / 2;
+                        const px = Math.cos(angle) * r;
+                        const py = Math.sin(angle) * r;
+                        if (i === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    // 방긋 웃는 표정
+                    ctx.fillStyle = '#713f12';
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.18, -s * 0.05, 4, 0, Math.PI * 2);
+                    ctx.arc(s * 0.18, -s * 0.05, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(0, s * 0.08, 8, 0, Math.PI);
+                    ctx.stroke();
+                    break;
+                }
+                // 13. 음식물 쓰레기
+                case 'food_waste': {
+                    // 사과 뼈대
+                    ctx.fillStyle = '#84cc16';
+                    ctx.strokeStyle = '#3f6212';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.arc(0, -s * 0.45, s * 0.32, Math.PI, 0);
+                    ctx.lineTo(s * 0.1, 0);
+                    ctx.arc(0, s * 0.45, s * 0.32, 0, Math.PI);
+                    ctx.lineTo(-s * 0.1, 0);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    // 썩은 갈색 반점
+                    ctx.fillStyle = '#78350f';
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.1, -s * 0.2, 6, 0, Math.PI * 2);
+                    ctx.arc(s * 0.08, s * 0.2, 7, 0, Math.PI * 2);
+                    ctx.fill();
+                    // 파리 날림 연출
+                    ctx.fillStyle = '#0f172a';
+                    ctx.beginPath();
+                    ctx.arc(s * 0.45, -s * 0.4, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                // 14. 폐전자기기
+                case 'e_waste': {
+                    ctx.fillStyle = '#064e3b';
+                    ctx.strokeStyle = '#10b981';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.roundRect(-s * 0.65, -s * 0.65, s * 1.3, s * 1.3, 10);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 깨진 CPU 칩 & 금도금 핀
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(-s * 0.35, -s * 0.35, s * 0.7, s * 0.7);
+                    ctx.strokeRect(-s * 0.35, -s * 0.35, s * 0.7, s * 0.7);
+                    ctx.fillStyle = '#facc15';
+                    ctx.font = `900 ${s * 0.25}px sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('CPU', 0, 0);
+                    // 크랙(파손 금)
+                    ctx.strokeStyle = '#ef4444';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.3, -s * 0.3); ctx.lineTo(s * 0.3, s * 0.3);
+                    ctx.stroke();
+                    break;
+                }
+                // 15. 유독 매연 스모그 구름
+                case 'smog_cloud': {
+                    ctx.fillStyle = '#475569';
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.35, s * 0.1, s * 0.38, 0, Math.PI * 2);
+                    ctx.arc(s * 0.35, s * 0.1, s * 0.38, 0, Math.PI * 2);
+                    ctx.arc(0, -s * 0.25, s * 0.48, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 유독 독가스 해골 X X 눈
+                    ctx.strokeStyle = '#f87171';
+                    ctx.lineWidth = 3.5;
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.22, -s * 0.2); ctx.lineTo(-s * 0.08, -s * 0.06);
+                    ctx.moveTo(-s * 0.08, -s * 0.2); ctx.lineTo(-s * 0.22, -s * 0.06);
+                    ctx.moveTo(s * 0.08, -s * 0.2); ctx.lineTo(s * 0.22, -s * 0.06);
+                    ctx.moveTo(s * 0.22, -s * 0.2); ctx.lineTo(s * 0.08, -s * 0.06);
+                    ctx.stroke();
+                    break;
+                }
+                // 16. 태양광 발전 패널
+                case 'solar_panel': {
+                    ctx.fillStyle = '#0369a1';
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.roundRect(-s * 0.7, -s * 0.55, s * 1.4, s * 1.1, 8);
+                    ctx.fill();
+                    ctx.stroke();
+                    // 격자 그리드
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.22, -s * 0.55); ctx.lineTo(-s * 0.22, s * 0.55);
+                    ctx.moveTo(s * 0.22, -s * 0.55); ctx.lineTo(s * 0.22, s * 0.55);
+                    ctx.moveTo(-s * 0.7, 0); ctx.lineTo(s * 0.7, 0);
+                    ctx.stroke();
+                    // 햇살 반사
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.beginPath();
+                    ctx.moveTo(-s * 0.5, -s * 0.45);
+                    ctx.lineTo(-s * 0.1, -s * 0.45);
+                    ctx.lineTo(-s * 0.35, s * 0.45);
+                    ctx.closePath();
+                    ctx.fill();
+                    break;
+                }
+                // 17. 맑은 물방울
+                case 'clean_water': {
+                    ctx.fillStyle = '#0284c7';
+                    ctx.strokeStyle = '#e0f2fe';
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -s * 0.9);
+                    ctx.quadraticCurveTo(s * 0.7, -s * 0.1, s * 0.58, s * 0.48);
+                    ctx.arc(0, s * 0.48, s * 0.58, 0, Math.PI);
+                    ctx.quadraticCurveTo(-s * 0.7, -s * 0.1, 0, -s * 0.9);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    // 맑은 하이라이트 광택
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.ellipse(-s * 0.22, s * 0.25, 6, 16, -0.4, 0, Math.PI * 2);
+                    ctx.fill();
+                    break;
+                }
+                // 18. 가로수 나무
+                case 'city_tree': {
+                    // 기둥
+                    ctx.fillStyle = '#78350f';
+                    ctx.strokeStyle = '#451a03';
+                    ctx.lineWidth = 4;
+                    ctx.fillRect(-s * 0.2, 0, s * 0.4, s * 0.85);
+                    ctx.strokeRect(-s * 0.2, 0, s * 0.4, s * 0.85);
+                    // 풍성한 나뭇잎
+                    ctx.fillStyle = '#22c55e';
+                    ctx.strokeStyle = '#14532d';
+                    ctx.beginPath();
+                    ctx.arc(0, -s * 0.28, s * 0.58, 0, Math.PI * 2);
+                    ctx.arc(-s * 0.35, -s * 0.12, s * 0.38, 0, Math.PI * 2);
+                    ctx.arc(s * 0.35, -s * 0.12, s * 0.38, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    break;
+                }
+                default: {
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, s * 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // 2. 우측 상단 명확한 식별 뱃지 배너 (오염물: 🗑️ 쓰레기통 / 보호물: 💚 녹색 하트)
+            ctx.save();
+            const badgeX = s * 0.75;
+            const badgeY = -s * 0.75;
+            const badgeR = s * 0.32;
+
+            if (isPollutant) {
+                // 터치 권장 오염물 뱃지 (주황/빨강)
+                ctx.fillStyle = '#ef4444';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `900 ${badgeR * 1.1}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('🧹', badgeX, badgeY);
+            } else {
+                // 터치 금지 보호물 뱃지 (초록 하트)
+                ctx.fillStyle = '#10b981';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = `900 ${badgeR * 1.1}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('💚', badgeX, badgeY);
+            }
+            ctx.restore();
+        }
+
+        /**
+         * 화면 전환 및 UI 제어 헬퍼
+         */
+        function hideAllScreens() {
+            const screens = [
+                'screenTitle',
+                'screenStageIntro',
+                'screenStageResult',
+                'screenFinalResult',
+                'screenLeaderboard',
+                'modalPause'
+            ];
+            screens.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+        }
+
+        /**
+         * 2. 스테이지 소개 가이드 팝업 열기
+         */
+        function openStageIntro(stageId) {
+            stopTitleEarthAnimation();
+            sound.init();
+            Game.currentStageId = stageId;
+            const config = STAGE_CONFIGS[stageId];
+            if (!config) return;
+
+            hideAllScreens();
+
+            // 가이드 텍스트 및 배지 세팅
+            const badge = document.getElementById('introStageBadge');
+            badge.className = `${config.badgeColor} font-game text-xs lg:text-sm px-4 py-1 rounded-full font-bold uppercase tracking-wider text-slate-950`;
+            badge.innerText = `STAGE ${stageId}`;
+
+            document.getElementById('introStageTitle').innerText = config.title;
+            document.getElementById('introStageDesc').innerText = config.desc;
+
+            // 터치할 오염물 목록
+            const goodContainer = document.getElementById('introGoodTargets');
+            goodContainer.innerHTML = '';
+            config.pollutants.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between bg-black/40 px-3 py-1.5 rounded-xl border border-emerald-500/30';
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">${p.symbol}</span>
+                        <span class="font-bold text-xs lg:text-sm text-gray-200">${p.name}</span>
+                    </div>
+                    <span class="font-game text-emerald-400 font-extrabold text-xs lg:text-sm">+${p.points}점</span>
+                `;
+                goodContainer.appendChild(div);
+            });
+
+            // 보호할 자연물 목록
+            const badContainer = document.getElementById('introBadTargets');
+            badContainer.innerHTML = '';
+            config.protected.forEach(pr => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between bg-black/40 px-3 py-1.5 rounded-xl border border-rose-500/30';
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">${pr.symbol}</span>
+                        <span class="font-bold text-xs lg:text-sm text-gray-200">${pr.name}</span>
+                    </div>
+                    <span class="font-game text-rose-400 font-extrabold text-xs lg:text-sm">-${pr.penalty}점</span>
+                `;
+                badContainer.appendChild(div);
+            });
+
+            document.getElementById('screenStageIntro').classList.remove('hidden');
+        }
+
+        /**
+         * 스테이지 게임 시작
+         */
+        function startCurrentStage() {
+            sound.init();
+            hideAllScreens();
+
+            const config = STAGE_CONFIGS[Game.currentStageId];
+            Game.isPlaying = true;
+            Game.isPaused = false;
+            Game.score = 0;
+            Game.combo = 0;
+            Game.maxCombo = 0;
+            Game.timeRemaining = config.duration; // 30초
+            Game.entities = [];
+            Game.lastSpawnTime = performance.now();
+            Game.lastFrameTime = performance.now();
+
+            // 기록 객체 리셋
+            Game.stageRecords[Game.currentStageId] = {
+                cleaned: 0,
+                missedPenalty: 0,
+                totalSpawnedPollutants: 0,
+                score: 0
+            };
+
+            // HUD 초기화
+            const hudBadge = document.getElementById('hudStageBadge');
+            hudBadge.className = `${config.badgeColor} text-slate-900 font-game text-lg lg:text-2xl px-4 py-1.5 rounded-full shadow-lg font-bold flex items-center gap-2`;
+            hudBadge.innerHTML = `<i class="fa-solid ${config.icon}"></i> <span>STAGE ${Game.currentStageId}: ${config.name}</span>`;
+
+            updateHUD();
+            document.getElementById('gameHUD').classList.remove('hidden');
+
+            // 1초 타이머
+            clearInterval(Game.timerInterval);
+            Game.timerInterval = setInterval(() => {
+                if (!Game.isPlaying || Game.isPaused) return;
+                Game.timeRemaining--;
+                updateHUD();
+
+                if (Game.timeRemaining <= 0) {
+                    endStage();
+                }
+            }, 1000);
+
+            // [두더지 잡기 방식] 한꺼번에 여러 개를 띄우지 않고 1개만 먼저 등장 후, 루프에서 순차 팝업
+            spawnEntity();
+
+            resizeCanvas();
+            if (Game.animationFrameId) cancelAnimationFrame(Game.animationFrameId);
+            Game.animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        /**
+         * HUD 점수/콤보/게이지 갱신
+         */
+        function updateHUD() {
+            document.getElementById('hudScore').innerText = Game.score;
+            document.getElementById('hudTimer').innerText = Game.timeRemaining;
+
+            // 정화율 게이지 바 (시간 경과 기반)
+            const config = STAGE_CONFIGS[Game.currentStageId];
+            if (config) {
+                const percent = Math.min(100, Math.round(((config.duration - Game.timeRemaining) / config.duration) * 100));
+                document.getElementById('hudCleanBar').style.width = `${percent}%`;
+            }
+
+            // 콤보 표시기
+            const comboEl = document.getElementById('hudComboContainer');
+            const comboText = document.getElementById('hudComboText');
+            if (Game.combo >= 2) {
+                comboText.innerText = `COMBO x${Game.combo}`;
+                comboEl.classList.remove('opacity-0');
+            } else {
+                comboEl.classList.add('opacity-0');
+            }
+        }
+
+        /**
+         * 화면 흔들림 효과 (오터치 시)
+         */
+        function triggerScreenShake() {
+            if (!tvStageWrapper) return;
+            tvStageWrapper.classList.remove('shake-animation');
+            void tvStageWrapper.offsetWidth; // reflow 강제
+            tvStageWrapper.classList.add('shake-animation');
+            setTimeout(() => {
+                tvStageWrapper.classList.remove('shake-animation');
+            }, 400);
+        }
+
+        /**
+         * 팝업 점수 애니메이션 (DOM Overlay)
+         */
+        function showFloatingText(x, y, text, colorClass) {
+            const el = document.createElement('div');
+            el.className = `absolute font-game text-2xl lg:text-3xl font-black ${colorClass} pointer-events-none transition-all duration-700 ease-out z-30 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]`;
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.style.transform = 'translate(-50%, -50%) scale(0.6)';
+            el.innerText = text;
+            effectOverlay.appendChild(el);
+
+            requestAnimationFrame(() => {
+                el.style.transform = 'translate(-50%, -100px) scale(1.2)';
+                el.style.opacity = '0';
+            });
+
+            setTimeout(() => el.remove(), 700);
+        }
+
+        /**
+         * 오브젝트 터치 적중 처리
+         */
+        function processHit(ent, index, touchX, touchY) {
+            // 목록에서 제거
+            Game.entities.splice(index, 1);
+
+            if (ent.type === 'pollutant') {
+                // [오염물 청소 성공]
+                Game.combo++;
+                if (Game.combo > Game.maxCombo) Game.maxCombo = Game.combo;
+
+                const comboBonus = Math.min(20, (Game.combo - 1) * 2);
+                const gained = ent.points + comboBonus;
+                Game.score += gained;
+                Game.stageRecords[Game.currentStageId].cleaned++;
+                Game.stageRecords[Game.currentStageId].score = Game.score;
+
+                if (ent.isSpecial) {
+                    sound.playSpecial();
+                } else {
+                    sound.playPop();
+                }
+
+                if (Game.combo >= 3) {
+                    sound.playCombo(Game.combo);
+                }
+
+                showFloatingText(touchX, touchY, `+${gained}`, 'text-amber-300');
+            } else {
+                // [보호 대상 오터치 감점]
+                Game.combo = 0;
+                Game.score = Math.max(0, Game.score - ent.penalty);
+                Game.stageRecords[Game.currentStageId].missedPenalty++;
+                Game.stageRecords[Game.currentStageId].score = Game.score;
+
+                sound.playBuzzer();
+                triggerScreenShake();
+                showFloatingText(touchX, touchY, `-${ent.penalty}`, 'text-rose-400');
+            }
+
+            updateHUD();
+        }
+
+        /**
+         * 전체화면 토글: Permissions policy 차단 시 안전한 CSS 가상 전체화면(Simulated Fullscreen)으로 폴백
+         */
+        function toggleFullscreen() {
+            const wrapper = document.getElementById('tvStageWrapper');
+
+            // 1. 브라우저 네이티브 전체화면 지원 및 허용 여부 체크
+            const isNativeFullscreenAvailable = Boolean(
+                document.fullscreenEnabled || 
+                document.webkitFullscreenEnabled || 
+                document.mozFullScreenEnabled || 
+                document.msFullscreenEnabled
+            );
+
+            // 네이티브 전체화면 상태 해제 시도
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen().catch(() => {});
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+                if (wrapper) wrapper.classList.remove('simulated-fullscreen');
+                setTimeout(resizeCanvas, 150);
+                return;
+            }
+
+            // 가상 전체화면 상태일 경우 해제
+            if (wrapper && wrapper.classList.contains('simulated-fullscreen')) {
+                wrapper.classList.remove('simulated-fullscreen');
+                setTimeout(resizeCanvas, 150);
+                return;
+            }
+
+            // 2. 네이티브 전체화면 진입 시도 (권한 정책 차단 예외 안전 처리)
+            let nativeRequestSuccess = false;
+            if (isNativeFullscreenAvailable) {
+                try {
+                    const targetEl = document.documentElement;
+                    let promise = null;
+                    if (targetEl.requestFullscreen) {
+                        promise = targetEl.requestFullscreen();
+                    } else if (targetEl.webkitRequestFullscreen) {
+                        promise = targetEl.webkitRequestFullscreen();
+                    }
+
+                    if (promise && typeof promise.then === 'function') {
+                        promise.then(() => {
+                            setTimeout(resizeCanvas, 150);
+                        }).catch((err) => {
+                            // Permissions Policy 등에 의해 거부된 경우 CSS 가상 전체화면 활성화
+                            enableSimulatedFullscreen(wrapper);
+                        });
+                        nativeRequestSuccess = true;
+                    }
+                } catch (e) {
+                    enableSimulatedFullscreen(wrapper);
+                }
+            }
+
+            // 네이티브 전체화면을 시도하지 못했거나 지원되지 않는 환경일 때
+            if (!nativeRequestSuccess) {
+                enableSimulatedFullscreen(wrapper);
+            }
+        }
+
+        /**
+         * iFrame 내부 및 권한 차단 환경용 가상 전체화면 전환
+         */
+        function enableSimulatedFullscreen(wrapper) {
+            if (!wrapper) return;
+            wrapper.classList.add('simulated-fullscreen');
+            setTimeout(resizeCanvas, 150);
+            showToast('전체화면 모드로 전환되었습니다.', 'info');
+        }
+
+        /**
+         * 캔버스 렌더링: 배경 및 노출된 아이콘들 (두더지 잡기 팝업 스케일 애니메이션)
+         */
+        function renderEntities() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 스테이지별 테마 배경 그리기
+            renderStageBackground(Game.currentStageId);
+
+            const now = performance.now();
+
+            Game.entities.forEach(ent => {
+                const age = now - ent.createdAt;
+                const timeLeft = ent.expiresAt - now;
+
+                // [두더지 팝업 모션: 등장 200ms 동안 0에서 1로 튀어나오고, 퇴장 200ms 동안 작아짐]
+                let scale = 1.0;
+                const popDuration = 200;
+                if (age < popDuration) {
+                    // 등장 가속 (0 -> 1.15 바운스 -> 1.0)
+                    const p = age / popDuration;
+                    scale = Math.sin(p * Math.PI * 0.5) * 1.05;
+                } else if (timeLeft < popDuration) {
+                    // 퇴장 축소 (1.0 -> 0)
+                    scale = Math.max(0, timeLeft / popDuration);
+                }
+
+                let opacity = 1.0;
+                // 1초 미만 남았을 때 두더지가 곧 들어간다는 깜빡임 경고 효과
+                if (timeLeft < 1000 && timeLeft >= popDuration) {
+                    opacity = Math.sin(timeLeft * 0.02) > 0 ? 0.35 : 0.95;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = Math.max(0.0, Math.min(1.0, opacity));
+                ctx.translate(ent.x, ent.y);
+                ctx.scale(scale, scale);
+
+                // 고화질 실제 사물 일러스트 렌더링 (이름, 점수 텍스트, 시간 바 없음)
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+                ctx.shadowBlur = 14;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 6;
+
+                drawRealisticObject(ent.id, ent.size, ent.type === 'pollutant');
+
+                ctx.restore();
+            });
+        }
+
+        /**
+         * 두더지 잡기 방식 오브젝트 스폰 함수:
+         * - 한 번에 최대 노출 4개 제한
+         * - 랜덤 위치에 쏙 나타남 (두더지 팝업)
+         * - 보호 대상 비율을 대폭 축소 (15%)
+         * - 스테이지가 올라갈수록 유지 시간 단축 (빠르게 사라짐)
+         */
+        function spawnEntity() {
+            // [규칙 5] 한번에 최대 노출되는 아이콘 4개 제한
+            if (Game.entities.length >= 4) return;
+
+            const config = STAGE_CONFIGS[Game.currentStageId];
+            if (!config) return;
+
+            // 보호 대상 등장 빈도 완화: 오염물 85%, 보호 대상 15%
+            const isPollutant = Math.random() < 0.85;
+            let targetConfig;
+
+            if (isPollutant) {
+                targetConfig = config.pollutants[Math.floor(Math.random() * config.pollutants.length)];
+                Game.stageRecords[Game.currentStageId].totalSpawnedPollutants++;
+            } else {
+                targetConfig = config.protected[Math.floor(Math.random() * config.protected.length)];
+            }
+
+            const size = targetConfig.size || 85;
+            const paddingX = size + 40;
+            const paddingY = size + 60;
+
+            // 기존 아이콘과 겹치지 않는 랜덤 위치 탐색 (두더지 구멍처럼 분산)
+            let x = 0, y = 0;
+            let safeLocation = false;
+            for (let trial = 0; trial < 15; trial++) {
+                x = paddingX + Math.random() * (canvas.width - paddingX * 2);
+                y = paddingY + Math.random() * (canvas.height - paddingY * 2 - 40);
+
+                let overlapped = false;
+                for (const existing of Game.entities) {
+                    if (Math.hypot(existing.x - x, existing.y - y) < size * 1.5) {
+                        overlapped = true;
+                        break;
+                    }
+                }
+                if (!overlapped) {
+                    safeLocation = true;
+                    break;
+                }
+            }
+
+            // [규칙 4] 스테이지별 난이도에 따른 수명 설정 (스테이지가 올라갈수록 더욱 빠르게 소멸)
+            const minLife = config.lifespanMin || 3000;
+            const maxLife = config.lifespanMax || 4000;
+            const lifespan = minLife + Math.random() * (maxLife - minLife);
+            const now = performance.now();
+
+            // 스테이지별 히트박스 반경 적용
+            const hitRatio = config.hitRadiusRatio || 0.65;
+
+            // [규칙 3] 움직이지 않는 고정 좌표
+            Game.entities.push({
+                type: isPollutant ? 'pollutant' : 'protected',
+                id: targetConfig.id,
+                name: targetConfig.name,
+                symbol: targetConfig.symbol,
+                points: targetConfig.points || 0,
+                penalty: targetConfig.penalty || 0,
+                color: targetConfig.color,
+                isSpecial: !!targetConfig.isSpecial,
+                size: size,
+                hitRadius: size * hitRatio, // 스테이지 난이도별 세분화된 터치 판정 반경
+                x: x,
+                y: y,
+                createdAt: now,
+                expiresAt: now + lifespan
+            });
+        }
+
+        /**
+         * 메인 게임 루프 (두더지 잡기 무작위 팝업 인터벌 관리)
+         */
+        function gameLoop(timestamp) {
+            if (!Game.isPlaying) return;
+
+            if (!Game.isPaused) {
+                const config = STAGE_CONFIGS[Game.currentStageId];
+                Game.lastFrameTime = timestamp;
+
+                // [규칙 4] 시간이 만료된 아이콘 자동 제거
+                const now = performance.now();
+                Game.entities = Game.entities.filter(ent => ent.expiresAt > now);
+
+                // 두더지 잡기 방식: 시간에 따라 스폰 간격 가속 (2/3단계는 한층 더 공격적 가속)
+                const progress = (config.duration - Game.timeRemaining) / config.duration;
+                const accelFactor = Game.currentStageId === 3 ? 200 : (Game.currentStageId === 2 ? 250 : 350);
+                const baseInterval = Math.max(260, config.spawnIntervalBase - (progress * accelFactor));
+                const randomizedInterval = baseInterval + (Math.random() * 160 - 80);
+
+                if (!Game.lastSpawnTime || timestamp - Game.lastSpawnTime > randomizedInterval) {
+                    // [규칙 5] 최대 4개일 때만 두더지처럼 1개씩 팝업
+                    if (Game.entities.length < 4) {
+                        spawnEntity();
+                    }
+                    Game.lastSpawnTime = timestamp;
+                }
+
+                renderEntities();
+            }
+
+            Game.animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        /**
+         * 3. 스테이지 종료 처리 (500점 이상 통과 판정)
+         */
+        function endStage() {
+            stopGame();
+
+            const config = STAGE_CONFIGS[Game.currentStageId];
+            const record = Game.stageRecords[Game.currentStageId];
+            const cleaned = record.cleaned;
+            const spawned = Math.max(1, record.totalSpawnedPollutants);
+            const rate = Math.min(100, Math.round((cleaned / spawned) * 100));
+            const isStagePassed = Game.score >= 500; // 500점 이상 통과 조건
+
+            hideAllScreens();
+
+            const cardBorder = document.getElementById('resCardBorder');
+            const iconBg = document.getElementById('resIconBg');
+            const stageIcon = document.getElementById('resStageIcon');
+            const badge = document.getElementById('resStageBadge');
+            const title = document.getElementById('resStageTitle');
+            const message = document.getElementById('resStageMessage');
+            const btnNext = document.getElementById('btnNextStage');
+
+            if (isStagePassed) {
+                // [500점 이상: 성공 클리어]
+                sound.playFanfare();
+                confetti({
+                    particleCount: 80,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+
+                cardBorder.className = 'bg-gradient-to-b from-slate-900 to-blue-950 border-4 border-emerald-400 rounded-3xl p-6 lg:p-8 max-w-2xl w-full shadow-2xl text-center flex flex-col items-center justify-between max-h-[92%]';
+                iconBg.className = 'w-16 h-16 bg-emerald-400 rounded-full flex items-center justify-center text-3xl text-slate-950 mb-2 shadow-lg';
+                stageIcon.className = 'fa-solid fa-medal';
+                badge.className = 'bg-emerald-600 font-game text-xs px-3 py-0.5 rounded-full font-bold';
+                badge.innerText = `STAGE ${Game.currentStageId} 클리어 성공! (목표 달성)`;
+                title.className = 'font-game text-2xl lg:text-4xl font-black text-emerald-300 my-1';
+                title.innerText = `${config.name} 정화 대성공!`;
+                message.className = 'text-emerald-300 text-sm lg:text-base font-semibold';
+                message.innerText = '500점 돌파 달성! 다음 단계로 당당히 나아갑니다!';
+
+                // 다음 스테이지 버튼 활성화
+                btnNext.classList.remove('hidden');
+                if (Game.currentStageId < 3) {
+                    btnNext.innerHTML = `<span>STAGE ${Game.currentStageId + 1} 이동</span> <i class="fa-solid fa-arrow-right"></i>`;
+                } else {
+                    btnNext.innerHTML = `<span>최종 성적표 보기!</span> <i class="fa-solid fa-trophy"></i>`;
+                }
+            } else {
+                // [500점 미만: 실패 및 재도전 유도]
+                sound.playBuzzer();
+
+                cardBorder.className = 'bg-gradient-to-b from-slate-900 to-rose-950 border-4 border-rose-500 rounded-3xl p-6 lg:p-8 max-w-2xl w-full shadow-2xl text-center flex flex-col items-center justify-between max-h-[92%]';
+                iconBg.className = 'w-16 h-16 bg-rose-500 rounded-full flex items-center justify-center text-3xl text-white mb-2 shadow-lg';
+                stageIcon.className = 'fa-solid fa-triangle-exclamation';
+                badge.className = 'bg-rose-600 font-game text-xs px-3 py-0.5 rounded-full font-bold';
+                badge.innerText = `STAGE ${Game.currentStageId} 정화 미달 (500점 필요)`;
+                title.className = 'font-game text-2xl lg:text-4xl font-black text-rose-400 my-1';
+                title.innerText = `아쉬워요! 다시 도전해보세요!`;
+                message.className = 'text-rose-300 text-sm lg:text-base font-semibold';
+                message.innerText = `현재 점수 ${Game.score}점 / 목표 500점 이상 달성해야 다음 스테이지로 갈 수 있습니다!`;
+
+                // 다음 스테이지 버튼 숨김 (통과 못함)
+                btnNext.classList.add('hidden');
+            }
+
+            document.getElementById('resStageScore').innerText = `${Game.score}점`;
+            document.getElementById('resCleanRate').innerText = `${rate}%`;
+
+            // 총합 누적 점수 계산
+            const totalSum = calculateTotalScore();
+            document.getElementById('resTotalScore').innerText = `${totalSum}점`;
+
+            // 별점 계산 (점수 기준: 500점 이상 2별, 650점 이상 3별)
+            const starsContainer = document.getElementById('resStars');
+            let starCount = 0;
+            if (Game.score >= 650) starCount = 3;
+            else if (Game.score >= 500) starCount = 2;
+            else if (Game.score >= 300) starCount = 1;
+
+            starsContainer.innerHTML = '';
+            for (let i = 1; i <= 3; i++) {
+                if (i <= starCount) {
+                    starsContainer.innerHTML += '<i class="fa-solid fa-star text-amber-400"></i>';
+                } else {
+                    starsContainer.innerHTML += '<i class="fa-regular fa-star text-gray-600"></i>';
+                }
+            }
+
+            document.getElementById('screenStageResult').classList.remove('hidden');
+        }
+
+        function calculateTotalScore() {
+            return Game.stageRecords[1].score + Game.stageRecords[2].score + Game.stageRecords[3].score;
+        }
+
+        /**
+         * 다음 스테이지로 넘어가기 (500점 통과 검증)
+         */
+        function goToNextStage() {
+            if (Game.score < 500) {
+                showToast('500점 이상 획득해야 다음 단계로 이동할 수 있습니다!', 'warning');
+                return;
+            }
+            if (Game.currentStageId < 3) {
+                openStageIntro(Game.currentStageId + 1);
+            } else {
+                showFinalResults();
+            }
+        }
+
+        function retryCurrentStage() {
+            hideAllScreens();
+            openStageIntro(Game.currentStageId);
+        }
+
+        /**
+         * 4. 최종 결과 성적표 (3단계 모두 클리어 시)
+         */
+        function showFinalResults() {
+            hideAllScreens();
+            confetti({
+                particleCount: 150,
+                spread: 100,
+                origin: { y: 0.5 }
+            });
+
+            // 1단계
+            document.getElementById('finalStg1Clean').innerText = `${Game.stageRecords[1].cleaned}개`;
+            document.getElementById('finalStg1Miss').innerText = `${Game.stageRecords[1].missedPenalty}회`;
+            document.getElementById('finalStg1Score').innerText = `${Game.stageRecords[1].score}점`;
+
+            // 2단계
+            document.getElementById('finalStg2Clean').innerText = `${Game.stageRecords[2].cleaned}개`;
+            document.getElementById('finalStg2Miss').innerText = `${Game.stageRecords[2].missedPenalty}회`;
+            document.getElementById('finalStg2Score').innerText = `${Game.stageRecords[2].score}점`;
+
+            // 3단계
+            document.getElementById('finalStg3Clean').innerText = `${Game.stageRecords[3].cleaned}개`;
+            document.getElementById('finalStg3Miss').innerText = `${Game.stageRecords[3].missedPenalty}회`;
+            document.getElementById('finalStg3Score').innerText = `${Game.stageRecords[3].score}점`;
+
+            const total = calculateTotalScore();
+            document.getElementById('finalTotalSumScore').innerText = `${total}점`;
+
+            document.getElementById('screenFinalResult').classList.remove('hidden');
+        }
+
+        /**
+         * 일시 정지 토글
+         */
+        function togglePauseGame() {
+            if (!Game.isPlaying) return;
+            Game.isPaused = !Game.isPaused;
+            const modal = document.getElementById('modalPause');
+            if (Game.isPaused) {
+                modal.classList.remove('hidden');
+            } else {
+                modal.classList.add('hidden');
+                Game.lastFrameTime = performance.now();
+            }
+        }
+
+        /**
+         * 게임 정지 루프 클린업
+         */
+        function stopGame() {
+            Game.isPlaying = false;
+            Game.isPaused = false;
+            clearInterval(Game.timerInterval);
+            if (Game.animationFrameId) {
+                cancelAnimationFrame(Game.animationFrameId);
+                Game.animationFrameId = null;
+            }
+            document.getElementById('gameHUD').classList.add('hidden');
+        }
+
+        /**
+         * 5. 명예의 전당 / 로컬 스토리지 랭킹 관리
+         */
+        function getLeaderboardData() {
+            try {
+                const raw = localStorage.getItem('eco_cleaner_ranking');
+                return raw ? JSON.parse(raw) : [
+                    { name: "지구수호대 1조", score: 980, date: "기본 기록" },
+                    { name: "푸른 바다팀", score: 820, date: "기본 기록" },
+                    { name: "초록 숲 탐험대", score: 650, date: "기본 기록" }
+                ];
+            } catch(e) {
+                return [];
+            }
+        }
+
+        function saveScoreToLeaderboard() {
+            const input = document.getElementById('inputPlayerName');
+            const name = input.value.trim() || '지구 지킴이';
+            const total = calculateTotalScore();
+
+            const list = getLeaderboardData();
+            const now = new Date();
+            const dateStr = `${now.getMonth() + 1}월 ${now.getDate()}일`;
+
+            list.push({ name: name, score: total, date: dateStr });
+            list.sort((a, b) => b.score - a.score); // 점수 내림차순
+
+            try {
+                localStorage.setItem('eco_cleaner_ranking', JSON.stringify(list.slice(0, 10)));
+                showToast(`'${name}' 님의 기록(${total}점)이 등록되었습니다!`, 'success');
+                input.value = '';
+                showLeaderboardScreen();
+            } catch(e) {}
+        }
+
+        function showLeaderboardScreen() {
+            const list = getLeaderboardData();
+            const tbody = document.getElementById('leaderboardTbody');
+            tbody.innerHTML = '';
+
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-gray-400">아직 등록된 기록이 없습니다.</td></tr>';
+            } else {
+                list.forEach((item, idx) => {
+                    let medal = `${idx + 1}위`;
+                    if (idx === 0) medal = '<i class="fa-solid fa-crown text-amber-400 text-lg"></i> 1위';
+                    else if (idx === 1) medal = '<i class="fa-solid fa-medal text-gray-300"></i> 2위';
+                    else if (idx === 2) medal = '<i class="fa-solid fa-medal text-amber-600"></i> 3위';
+
+                    const row = document.createElement('tr');
+                    row.className = idx % 2 === 0 ? 'bg-white/5' : '';
+                    row.innerHTML = `
+                        <td class="py-2.5 font-game font-bold">${medal}</td>
+                        <td class="py-2.5 font-bold text-white">${escapeHtml(item.name)}</td>
+                        <td class="py-2.5 font-game text-amber-300 font-extrabold text-lg">${item.score}점</td>
+                        <td class="py-2.5 text-xs text-gray-400">${item.date || '-'}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+
+            document.getElementById('screenLeaderboard').classList.remove('hidden');
+        }
+
+        function closeLeaderboard() {
+            document.getElementById('screenLeaderboard').classList.add('hidden');
+        }
+
+        function clearLeaderboard() {
+            localStorage.removeItem('eco_cleaner_ranking');
+            showLeaderboardScreen();
+            showToast('랭킹 기록이 초기화되었습니다.', 'info');
+        }
+
+        function escapeHtml(string) {
+            return String(string).replace(/[&<>"']/g, function (s) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s];
+            });
+        }
+
+        /**
+         * 안내 알림 토스트 (alert() 금지 준수)
+         */
+        function showToast(msg, type = 'info') {
+            const toast = document.createElement('div');
+            const bg = type === 'warning' ? 'bg-amber-500' : (type === 'success' ? 'bg-emerald-600' : 'bg-blue-600');
+            toast.className = `fixed bottom-8 left-1/2 transform -translate-x-1/2 ${bg} text-white font-game text-base sm:text-lg px-6 py-2.5 rounded-full shadow-2xl z-50 transition-all duration-300 flex items-center gap-2 border border-white/30`;
+            toast.innerHTML = `<i class="fa-solid fa-circle-info"></i> <span>${msg}</span>`;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translate(-50%, 20px)';
+                setTimeout(() => toast.remove(), 400);
+            }, 2200);
+        }
+
+        // 초기화
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            startTitleEarthAnimation();
+        });
+
+        // 캔버스 터치 및 마우스 클릭 이벤트 핸들러
+        function handleInteraction(clientX, clientY) {
+            if (!Game.isPlaying || Game.isPaused) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+
+            const touchX = (clientX - rect.left) * scaleX;
+            const touchY = (clientY - rect.top) * scaleY;
+
+            // 맨 위(나중에 렌더링된) 객체부터 히트 판정
+            for (let i = Game.entities.length - 1; i >= 0; i--) {
+                const ent = Game.entities[i];
+                const dist = Math.hypot(ent.x - touchX, ent.y - touchY);
+
+                if (dist <= ent.hitRadius) {
+                    processHit(ent, i, clientX - rect.left, clientY - rect.top);
+                    break;
+                }
+            }
+        }
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            sound.init();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                handleInteraction(t.clientX, t.clientY);
+            }
+        }, { passive: false });
+
+        canvas.addEventListener('mousedown', (e) => {
+            sound.init();
+            handleInteraction(e.clientX, e.clientY);
+        });
+    </script>
+</body>
+</html>
